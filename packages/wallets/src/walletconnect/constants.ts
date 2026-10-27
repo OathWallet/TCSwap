@@ -9,7 +9,9 @@ export const DEFAULT_RELAY_URL = "wss://relay.walletconnect.com";
 export const ETHEREUM_MAINNET_ID = "eip155:1";
 export const BSC_MAINNET_ID = "eip155:56";
 export const AVALANCHE_MAINNET_ID = "eip155:43114";
-export const THORCHAIN_MAINNET_ID = "cosmos:thorchain";
+export const THORCHAIN_MAINNET_ID = "cosmos:thorchain-1";
+// What this connector used to ask for; still offered so a wallet keyed on it keeps working.
+export const THORCHAIN_LEGACY_ID = "cosmos:thorchain";
 export const COSMOS_HUB_MAINNET_ID = "cosmos:cosmoshub-4";
 export const KUJIRA_MAINNET_ID = "cosmos:kaiyo-1";
 export const MAYACHAIN_MAINNET_ID = "cosmos:mayachain-mainnet-v1";
@@ -23,8 +25,9 @@ export const TRON_MAINNET_ID = "tron:0x2b6653dc";
 export const AURORA_MAINNET_ID = "eip155:1313161554";
 export const BERACHAIN_MAINNET_ID = "eip155:80094";
 export const MONAD_MAINNET_ID = "eip155:143";
+export const XLAYER_MAINNET_ID = "eip155:196";
 
-export const DEFAULT_LOGGER = "debug";
+export const DEFAULT_LOGGER = "error";
 
 export const DEFAULT_APP_METADATA: ClientMetadata = {
   description: "USwap cross-chain SDK",

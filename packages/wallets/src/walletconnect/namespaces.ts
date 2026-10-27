@@ -68,14 +68,18 @@ export const getSupportedEventsByNamespace = (namespace: string) => {
   }
 };
 
-export const getRequiredNamespaces = (chains: string[]): ProposalTypes.RequiredNamespaces => {
+/**
+ * Namespaces for a session proposal. Sent as optional rather than required: a wallet rejects a
+ * proposal outright when it lacks a required chain, while optional ones it approves as far as it can.
+ */
+export const getNamespaces = (chains: string[]): ProposalTypes.OptionalNamespaces => {
   const selectedNamespaces = getNamespacesFromChains(chains);
 
   return Object.fromEntries(
     selectedNamespaces.map((namespace) => [
       namespace,
       {
-        chains: chains.filter((chain) => chain.startsWith(namespace)),
+        chains: chains.filter((chain) => chain.startsWith(`${namespace}:`)),
         events: getSupportedEventsByNamespace(namespace) as any[],
         methods: getSupportedMethodsByNamespace(namespace),
       },
