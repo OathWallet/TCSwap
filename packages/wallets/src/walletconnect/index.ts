@@ -9,7 +9,6 @@ import type { NearSigner } from "@tcswap/toolboxes/near";
 import type { TronSignedTransaction, TronSigner, TronTransaction } from "@tcswap/toolboxes/tron";
 import { createWallet, getWalletSupportedChains } from "@tcswap/wallet-core";
 import type { WalletConnectModal } from "@walletconnect/modal";
-import type { SignClient } from "@walletconnect/sign-client";
 import type { SessionTypes } from "@walletconnect/types";
 import {
   DEFAULT_COSMOS_METHODS,
@@ -29,10 +28,21 @@ import {
   getSessionChainId,
 } from "./helpers";
 import { getNamespaces } from "./namespaces";
+import {
+  bindChain,
+  disconnectChain,
+  endSession,
+  endUnusedSessions,
+  isEnding,
+  onSessionEnded,
+  type SignClientInstance,
+  trackSetup,
+} from "./sessions";
 import type { WalletconnectOptions } from "./types";
 
 export * from "./constants";
 export { isWalletconnectDismissed } from "./helpers";
+export { onWalletconnectDisconnect } from "./sessions";
 export * from "./types";
 
 export const walletconnectWallet = createWallet({
@@ -45,38 +55,59 @@ export const walletconnectWallet = createWallet({
         throw new USwapError("wallet_walletconnect_project_id_not_specified");
       }
 
-      const approved = await enqueue(() =>
-        getWalletconnects(filteredChains, walletConnectProjectId, walletconnectOptions),
-      );
+      const restoreOnly = !!walletconnectOptions?.restoreOnly;
+      const { approved, client, setUp, superseded } = await enqueue(async () => {
+        const found = await getWalletconnects(filteredChains, walletConnectProjectId, walletconnectOptions);
+        // In use until set up, so another connect ending the sessions it has no chain on leaves these be.
+        const topics = found.approved.map(({ walletconnect }) => walletconnect.session.topic);
+        return { ...found, setUp: trackSetup(topics) };
+      });
 
       const added = await Promise.allSettled(
         approved.map(async ({ chain, walletconnect }) => {
+          const { client, session } = walletconnect;
           const address = getAddressByChain(chain, walletconnect.accounts);
           const toolbox = await getToolbox({ address, chain, walletconnect });
+
+          // Ended while the chain was set up: by the wallet while the page was closed, say, which the relay
+          // delivers only once it has reconnected, or by another connect.
+          if (!client.session.keys.includes(session.topic) || isEnding(session.topic)) {
+            const info = { reason: "The wallet ended the session" };
+            throw new USwapError({ errorKey: "wallet_walletconnect_connection_not_established", info });
+          }
 
           addChain({
             ...toolbox,
             address,
             chain,
-            disconnect: walletconnect.disconnect,
+            disconnect: () => disconnectChain(client, chain, session.topic),
             walletType: WalletOption.WALLETCONNECT,
           });
+          // Bound as it is added, so the wallet ending the session from now on finds the chain. The session it
+          // signed with until now is taken here too, not before the setup, which another connect may outrun.
+          return bindChain(chain, session.topic);
         }),
       );
+      setUp();
+
+      // Sessions no chain signs with any more are ended: those the chains replaced and, when some chain connected,
+      // those superseded. So is one no chain could be set up with, but not on a restore: failing here (a chunk that
+      // did not load, say) is no reason to drop a session the user approved.
+      const connected = added.some((result) => result.status === "fulfilled");
+      const replaced = added.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
+      const sessionTopics = restoreOnly ? [] : approved.map(({ walletconnect }) => walletconnect.session.topic);
+      endUnusedSessions(client, [...replaced, ...sessionTopics, ...(connected ? superseded : [])]);
 
       // A chain that failed to set up is left out like one the wallet did not approve, unless every chain failed.
       const failures = approved.flatMap(({ chain }, index) => {
         const result = added[index];
         return result?.status === "rejected" ? [{ chain, reason: result.reason }] : [];
       });
-      if (failures.length === approved.length) throw failures[0]?.reason;
+      if (!connected) throw failures[0]?.reason;
 
       for (const { chain, reason } of failures) {
         console.warn(`WalletConnect: ${chain} was not connected`, reason);
       }
-
-      // The chains set up are bound, so the sessions they replaced are ended.
-      bindChains(approved.filter((_, index) => added[index]?.status === "fulfilled"));
 
       return true;
     },
@@ -105,8 +136,8 @@ export const walletconnectWallet = createWallet({
 
 /**
  * Loads WalletConnect, connects to its relay and readies the QR modal ahead of a connect, so pressing
- * connect opens the modal at once and its QR code follows a single relay round trip later. Pass the options the connect will use: the client keeps
- * the first ones it is created with.
+ * connect opens the modal at once and its QR code follows a single relay round trip later. Pass the options
+ * the connect will use: the client keeps the first ones it is created with.
  */
 export function preloadWalletconnect(walletconnectOptions?: WalletconnectOptions) {
   const { walletConnectProjectId } = USwapConfig.get("apiKeys");
@@ -343,8 +374,6 @@ function getCosmosSigner({
   };
 }
 
-type SignClientInstance = Awaited<ReturnType<typeof SignClient.init>>;
-
 // One client and one modal per page: every `SignClient.init` opens its own relay socket and storage,
 // and WalletConnect warns when it is initialised again.
 let clientPromise: Promise<SignClientInstance> | undefined;
@@ -352,15 +381,21 @@ let modalPromise: Promise<WalletConnectModal> | undefined;
 
 function getSignClient(projectId: string, { restoreOnly: _, ...options }: WalletconnectOptions = {}) {
   clientPromise ??= import("@walletconnect/sign-client")
-    .then(({ SignClient }) =>
-      SignClient.init({
+    .then(async ({ SignClient }) => {
+      const client = await SignClient.init({
         logger: DEFAULT_LOGGER,
         relayUrl: DEFAULT_RELAY_URL,
         ...options,
         metadata: getMetadata(options.metadata),
         projectId,
-      }),
-    )
+      });
+
+      // Ended from the wallet's side, or expired, a session would otherwise leave its chains looking connected.
+      client.on("session_delete", ({ topic }) => onSessionEnded(topic));
+      client.on("session_expire", ({ topic }) => onSessionEnded(topic));
+
+      return client;
+    })
     .catch((error) => {
       clientPromise = undefined;
       throw error;
@@ -430,7 +465,8 @@ async function pair(client: SignClientInstance, projectId: string, chains: Chain
     const opening = modal.openModal();
     const openings = [opening];
     const timeout = setTimeout(() => {
-      const info = { reason: "The WalletConnect modal did not load" };
+      // A UI that failed to load is not loaded again: the bundler keeps the failed chunk until a reload.
+      const info = { reason: "The WalletConnect modal did not load. Reload the page and try again." };
       settle(() => reject(new USwapError({ errorKey: "wallet_walletconnect_connection_not_established", info })));
     }, MODAL_OPEN_TIMEOUT);
     opening.then(
@@ -489,21 +525,22 @@ function queryShadowAll(root: ParentNode, selector: string): Element[] {
   ];
 }
 
-const USER_DISCONNECTED = { code: 6000, message: "User disconnected" };
-
 type ApprovedChain<T extends Chain = Chain> = { chain: T; walletconnect: Walletconnect };
 
-/** The chains the wallet approved, each with the session it signs with. */
+/**
+ * The chains the wallet approved, each with the session it signs with, and on a restore the older sessions
+ * that approved them too.
+ */
 async function getWalletconnects<T extends Chain>(
   chains: T[],
   projectId: string,
   walletconnectOptions?: WalletconnectOptions,
-): Promise<ApprovedChain<T>[]> {
+): Promise<{ approved: ApprovedChain<T>[]; client: SignClientInstance; superseded: string[] }> {
   const client = await getSignClient(projectId, walletconnectOptions).catch((error) => {
     throw new USwapError("wallet_walletconnect_connection_not_established", error);
   });
 
-  const sessions = client.session.getAll().filter((session) => !endingTopics.has(session.topic));
+  const sessions = client.session.getAll().filter((session) => !isEnding(session.topic));
 
   if (walletconnectOptions?.restoreOnly) {
     // Each chain from the newest session that approved it: chains connected at different times sit in
@@ -512,11 +549,20 @@ async function getWalletconnects<T extends Chain>(
     if (restored.length === 0) throw new USwapError("wallet_walletconnect_connection_not_established");
 
     const byTopic = new Map<string, Walletconnect>();
-    return restored.map(({ chain, session }) => {
+    const approved = restored.map(({ chain, session }) => {
       const walletconnect = byTopic.get(session.topic) ?? toWalletconnect(client, session);
       byTopic.set(session.topic, walletconnect);
       return { chain, walletconnect };
     });
+
+    const superseded = sessions
+      .filter(
+        (session) =>
+          !byTopic.has(session.topic) && chains.some((chain) => getAddressByChain(chain, getSessionAccounts(session))),
+      )
+      .map((session) => session.topic);
+
+    return { approved, client, superseded };
   }
 
   const session = findReusableSession(sessions, chains) ?? (await pair(client, projectId, chains));
@@ -525,60 +571,13 @@ async function getWalletconnects<T extends Chain>(
   // The proposal asks for every chain as optional, so the wallet may approve only some of them.
   const approved = chains.filter((chain) => getAddressByChain(chain, walletconnect.accounts));
   if (approved.length === 0) {
-    await walletconnect.disconnect();
+    await endSession(client, session.topic);
     throw new USwapError("wallet_walletconnect_chain_not_supported", { chains });
   }
 
-  return approved.map((chain) => ({ chain, walletconnect }));
-}
-
-// The session each connected chain signs with. One no chain signs with any more is ended: left alone,
-// a later connect would pick it up without a QR code, even after the user disconnected.
-const chainTopics = new Map<Chain, string>();
-
-function bindChains(approved: ApprovedChain[]) {
-  const replaced = new Set(approved.map(({ chain }) => chainTopics.get(chain)));
-
-  for (const { chain, walletconnect } of approved) {
-    chainTopics.set(chain, walletconnect.session.topic);
-  }
-
-  const inUse = new Set(chainTopics.values());
-  const client = approved[0]?.walletconnect.client;
-  for (const topic of replaced) {
-    if (client && topic && !inUse.has(topic)) void endSession(client, topic);
-  }
-}
-
-// Sessions being ended, which no connect picks up meanwhile.
-const endingTopics = new Set<string>();
-
-async function endSession(client: SignClientInstance, topic: string) {
-  if (endingTopics.has(topic) || !client.session.getAll().some((s) => s.topic === topic)) return;
-  endingTopics.add(topic);
-
-  try {
-    await client.disconnect({ reason: USER_DISCONNECTED, topic });
-  } catch {
-    // Offline, or the request failed: the session is still stored, where a later connect would reuse it without
-    // a QR code. Dropped here, it stays with the wallet until it expires.
-    await client.session.delete(topic, USER_DISCONNECTED).catch(() => undefined);
-  } finally {
-    endingTopics.delete(topic);
-  }
+  return { approved: approved.map((chain) => ({ chain, walletconnect })), client, superseded: [] };
 }
 
 function toWalletconnect(client: SignClientInstance, session: SessionTypes.Struct) {
-  const { topic } = session;
-  const accounts = getSessionAccounts(session);
-
-  // Every chain of the session shares this; calls made while the session is being ended do nothing.
-  const disconnect = () => {
-    for (const [chain, chainTopic] of chainTopics) {
-      if (chainTopic === topic) chainTopics.delete(chain);
-    }
-    return endSession(client, topic);
-  };
-
-  return { accounts, client, disconnect, session };
+  return { accounts: getSessionAccounts(session), client, session };
 }

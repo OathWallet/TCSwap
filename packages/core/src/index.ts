@@ -232,16 +232,18 @@ export function USwap<
   }
 
   /**
-   * Disconnects every chain of one wallet, including chains another wallet has since taken over: their
-   * slot stays with that wallet, but this one's session still ends.
+   * Disconnects every chain of one wallet, or only `chains`, including chains another wallet has since taken
+   * over: their slot stays with that wallet, but this one's session still ends.
    */
-  function disconnectWallet(walletOption: WalletOption) {
+  function disconnectWallet(walletOption: WalletOption, chains?: Chain[]) {
     const chainMap = connectedWalletsByWallet.get(walletOption);
     if (!chainMap) return;
 
-    connectedWalletsByWallet.delete(walletOption);
+    const disconnected = [...chainMap].filter(([chain]) => !chains || chains.includes(chain));
+    for (const [chain] of disconnected) chainMap.delete(chain);
+    if (chainMap.size === 0) connectedWalletsByWallet.delete(walletOption);
 
-    for (const [chain, wallet] of chainMap) {
+    for (const [chain, wallet] of disconnected) {
       if (connectedWalletsByChain[chain as ConnectedChains]?.walletType === walletOption) {
         // Hand the chain back to the most recently connected wallet still on it, if any.
         const other = [...connectedWalletsByWallet.values()]
@@ -256,7 +258,12 @@ export function USwap<
     }
   }
 
+  // Wallet by wallet: a chain's slot holds only the last wallet connected on it, and the others' sessions on
+  // that chain must end too.
   function disconnectAll() {
+    for (const walletOption of [...connectedWalletsByWallet.keys()]) {
+      disconnectWallet(walletOption);
+    }
     for (const chain of Object.keys(connectedWalletsByChain) as (keyof typeof connectedWalletsByChain)[]) {
       disconnectChain(chain);
     }

@@ -1,5 +1,36 @@
 <!-- Modifications © 2025 Magic Systems. -->
 
+## 4.3.36
+
+### Patch Changes
+
+- WalletConnect:
+
+  - Fix the WalletConnect connector: propose chains as optional namespaces so a wallet can approve a subset, match accounts by exact CAIP-2 id, return a real `TransactionResponse` from EVM `sendTransaction`, sign with `personal_sign`, sign THORChain, Maya, Cosmos and Kujira through the cosmos toolbox via `cosmos_signAmino`, reject as soon as the QR modal is closed, reuse a live session (and `restoreOnly` to reconnect without a QR code), keep one sign client per page, and log errors only.
+  - New `preloadWalletconnect(options)` loads WalletConnect ahead of a connect, so the QR modal opens at once.
+  - The QR modal opens immediately with a spinner until the QR code is ready.
+  - New `isWalletconnectDismissed(error)` detects a closed QR modal (`wallet_walletconnect_modal_closed`).
+  - Connects run one at a time.
+  - `restoreOnly` restores every chain, even when they were connected in different sessions.
+  - A chain that fails to connect is skipped with a warning; the connect fails only if every chain does.
+  - Sessions that are no longer used, cancelled, or fail to disconnect are cleaned up, so they are never reused without a QR code.
+  - The QR modal no longer hangs when its wallet list or UI fails to load.
+  - Metadata `url` defaults to the page's origin; an app's own `name` no longer gets TCSwap's description and logo.
+
+  Core:
+
+  - New `disconnectWallet(option)` disconnects every chain of one wallet and hands each chain back to another connected wallet.
+  - A wallet no longer inherits another wallet's `disconnect` or balance, or a balance from a different address.
+  - A failing `disconnect` no longer stops the rest of a disconnect.
+
+- Updated dependencies []:
+  - @tcswap/helpers@4.5.28
+  - @tcswap/toolboxes@4.3.32
+  - @tcswap/wallet-core@4.0.72
+  - @tcswap/wallet-extensions@4.1.35
+  - @tcswap/wallet-hardware@4.2.34
+  - @tcswap/wallet-keystore@4.1.32
+
 ## 4.3.35
 
 ### Patch Changes

@@ -224,5 +224,5 @@
     "type-check:go": "tsgo"
   },
   "type": "module",
-  "version": "4.3.35"
+  "version": "4.3.36"
 }

@@ -52,6 +52,21 @@ describe("addChain", () => {
   });
 });
 
+describe("disconnectAll", () => {
+  test("ends every wallet's chains, including those behind another wallet", async () => {
+    disconnected.length = 0;
+    const uSwap = create();
+    await uSwap.connectWc([Chain.Ethereum, Chain.THORChain], "0xwc");
+    await uSwap.connectMm([Chain.Ethereum], "0xmm");
+
+    uSwap.disconnectAll();
+
+    expect(disconnected.sort()).toEqual(["METAMASK:ETH", "WALLETCONNECT:ETH", "WALLETCONNECT:THOR"]);
+    expect(uSwap.getWalletByChain(Chain.Ethereum)).toBeUndefined();
+    expect(uSwap.getWallet(WalletOption.WALLETCONNECT, Chain.Ethereum)).toBeUndefined();
+  });
+});
+
 describe("disconnectWallet", () => {
   test("ends the wallet's session on chains another wallet took over, leaving their slot", async () => {
     disconnected.length = 0;
@@ -65,6 +80,20 @@ describe("disconnectWallet", () => {
     expect(uSwap.getWalletByChain(Chain.Ethereum).address).toBe("0xmm");
     expect(uSwap.getWalletByChain(Chain.THORChain)).toBeUndefined();
     expect(uSwap.getWallet(WalletOption.WALLETCONNECT, Chain.Ethereum)).toBeUndefined();
+  });
+
+  test("disconnects only the chains given, handing them back", async () => {
+    disconnected.length = 0;
+    const uSwap = create();
+    await uSwap.connectMm([Chain.Ethereum], "0xmm", false);
+    await uSwap.connectWc([Chain.Ethereum, Chain.THORChain], "0xwc");
+
+    uSwap.disconnectWallet(WalletOption.WALLETCONNECT, [Chain.Ethereum]);
+
+    expect(disconnected).toEqual(["WALLETCONNECT:ETH"]);
+    expect(uSwap.getWalletByChain(Chain.Ethereum).address).toBe("0xmm");
+    expect(uSwap.getWallet(WalletOption.WALLETCONNECT, Chain.Ethereum)).toBeUndefined();
+    expect(uSwap.getWallet(WalletOption.WALLETCONNECT, Chain.THORChain).address).toBe("0xwc");
   });
 
   test("hands the chain back to the most recently connected wallet still on it", async () => {
