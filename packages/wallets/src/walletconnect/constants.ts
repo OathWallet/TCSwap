@@ -30,12 +30,10 @@ export const XLAYER_MAINNET_ID = "eip155:196";
 export const DEFAULT_LOGGER = "error";
 
 export const DEFAULT_APP_METADATA: ClientMetadata = {
-  description: "USwap cross-chain SDK",
-  icons: [
-    "https://raw.githubusercontent.com/horizontalsystems/USwap/refs/heads/develop/docs/src/assets/logo-black.png",
-  ],
-  name: "USwap",
-  url: "https://uswap.dev/",
+  description: "TCSwap cross-chain SDK",
+  icons: ["https://raw.githubusercontent.com/thorchain/TCSwap/refs/heads/main/docs/src/assets/logo-black.png"],
+  name: "TCSwap",
+  url: "https://github.com/thorchain/TCSwap",
 };
 
 /**

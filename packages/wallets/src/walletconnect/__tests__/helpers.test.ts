@@ -1,7 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { Chain } from "@tcswap/helpers";
+import { Chain, USwapError } from "@tcswap/helpers";
 
-import { chainToChainIds, findReusableSession, getAddressByChain, getSessionChainId } from "../helpers";
+import {
+  chainToChainIds,
+  findRestorableSessions,
+  findReusableSession,
+  getAddressByChain,
+  getMetadata,
+  getSessionChainId,
+  isWalletconnectDismissed,
+} from "../helpers";
 import { getNamespaces } from "../namespaces";
 
 const EVM = "0x1111111111111111111111111111111111111111";
@@ -86,5 +94,64 @@ describe("findReusableSession", () => {
 
     expect(findReusableSession([expired], [Chain.Ethereum])).toBeUndefined();
     expect(findReusableSession([partial, newer], [Chain.Ethereum])?.topic).toBe("newer");
+  });
+});
+
+describe("findRestorableSessions", () => {
+  const session = (topic: string, accounts: string[], expiry = Date.now() / 1000 + 3600) =>
+    ({ expiry, namespaces: { all: { accounts } }, topic }) as any;
+  const restore = (sessions: any[], chains: Chain[]) =>
+    findRestorableSessions(sessions, chains).map(({ chain, session }) => [chain, session.topic]);
+
+  const eth = session("eth", [`eip155:1:${EVM}`]);
+  const thor = session("thor", ["cosmos:thorchain-1:thor1abc"]);
+
+  test("restores each chain from the session that approved it", () => {
+    expect(restore([eth, thor], [Chain.Ethereum, Chain.THORChain])).toEqual([
+      [Chain.Ethereum, "eth"],
+      [Chain.THORChain, "thor"],
+    ]);
+  });
+
+  test("picks the newest session for a chain several approved", () => {
+    const older = session("older", ["cosmos:thorchain-1:thor1abc", `eip155:1:${OP}`]);
+    const newer = session("newer", [`eip155:1:${EVM}`], Date.now() / 1000 + 7200);
+
+    expect(restore([older, newer], [Chain.THORChain, Chain.Ethereum])).toEqual([
+      [Chain.THORChain, "older"],
+      [Chain.Ethereum, "newer"],
+    ]);
+  });
+
+  test("skips expired sessions and chains no session approved", () => {
+    const expired = session("expired", ["cosmos:thorchain-1:thor1abc"], Date.now() / 1000 - 1);
+    expect(restore([eth, expired], [Chain.Ethereum, Chain.THORChain])).toEqual([[Chain.Ethereum, "eth"]]);
+  });
+});
+
+describe("getMetadata", () => {
+  test("keeps an app's own metadata and defaults the url", () => {
+    const metadata = getMetadata({ description: "Swap", icons: ["https://app/icon.png"], name: "App" });
+
+    expect(metadata).toMatchObject({ description: "Swap", icons: ["https://app/icon.png"], name: "App" });
+    expect(metadata.url).toBeTruthy();
+  });
+
+  test("does not mix TCSwap's description and logo into an app's name", () => {
+    expect(getMetadata({ name: "App" })).toMatchObject({ description: "", icons: [], name: "App" });
+  });
+
+  test("is TCSwap's without metadata", () => {
+    expect(getMetadata().name).toBe("TCSwap");
+  });
+});
+
+describe("isWalletconnectDismissed", () => {
+  test("is the closed QR modal only", () => {
+    expect(isWalletconnectDismissed(new USwapError("wallet_walletconnect_modal_closed"))).toBe(true);
+    expect(
+      isWalletconnectDismissed(new USwapError("wallet_walletconnect_connection_not_established", { reason: "closed" })),
+    ).toBe(false);
+    expect(isWalletconnectDismissed(undefined)).toBe(false);
   });
 });

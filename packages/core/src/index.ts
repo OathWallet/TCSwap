@@ -99,18 +99,19 @@ export function USwap<
   function addChain<T extends Chain>(connectWallet: Omit<ChainWallet<T>, "balance"> & { balance?: AssetValue[] }) {
     const currentWallet = getWalletByChain(connectWallet.chain);
 
-    const balance = connectWallet?.balance ||
-      currentWallet?.balance || [AssetValue.from({ chain: connectWallet.chain })];
-
-    const wallet = { ...currentWallet, ...connectWallet, balance };
+    // Fields carry over only from the same wallet: another's `disconnect` would end that wallet's session.
+    // The balance carries over only from the same address, as a wallet may have switched accounts.
+    const previous = currentWallet?.walletType === connectWallet.walletType ? currentWallet : undefined;
+    const previousBalance = previous?.address === connectWallet.address ? previous?.balance : undefined;
+    const balance = connectWallet?.balance || previousBalance || [AssetValue.from({ chain: connectWallet.chain })];
+    const wallet = { ...previous, ...connectWallet, balance };
     connectedWalletsByChain[connectWallet.chain] = wallet as FullWallet[T];
 
     const walletOption = connectWallet.walletType as WalletOption;
-    let chainMap = connectedWalletsByWallet.get(walletOption);
-    if (!chainMap) {
-      chainMap = new Map<Chain, any>();
-      connectedWalletsByWallet.set(walletOption, chainMap);
-    }
+    const chainMap = connectedWalletsByWallet.get(walletOption) ?? new Map<Chain, any>();
+    // Re-inserted so the map runs from the least to the most recently connected wallet.
+    connectedWalletsByWallet.delete(walletOption);
+    connectedWalletsByWallet.set(walletOption, chainMap);
 
     chainMap.set(connectWallet.chain, wallet as FullWallet[T]);
 
@@ -216,8 +217,43 @@ export function USwap<
       }
     }
 
-    wallet?.disconnect?.();
+    endSession(wallet);
     delete connectedWalletsByChain[chain];
+  }
+
+  // A wallet's `disconnect` may throw or reject (a provider without `wallet_revokePermissions`); that
+  // must not stop the rest of a disconnect.
+  function endSession(wallet?: { disconnect?: () => unknown }) {
+    try {
+      Promise.resolve(wallet?.disconnect?.()).catch(() => undefined);
+    } catch {
+      // Already disconnected as far as this SDK goes.
+    }
+  }
+
+  /**
+   * Disconnects every chain of one wallet, including chains another wallet has since taken over: their
+   * slot stays with that wallet, but this one's session still ends.
+   */
+  function disconnectWallet(walletOption: WalletOption) {
+    const chainMap = connectedWalletsByWallet.get(walletOption);
+    if (!chainMap) return;
+
+    connectedWalletsByWallet.delete(walletOption);
+
+    for (const [chain, wallet] of chainMap) {
+      if (connectedWalletsByChain[chain as ConnectedChains]?.walletType === walletOption) {
+        // Hand the chain back to the most recently connected wallet still on it, if any.
+        const other = [...connectedWalletsByWallet.values()]
+          .reverse()
+          .find((wallets) => wallets.has(chain))
+          ?.get(chain);
+        if (other) (connectedWalletsByChain as Record<Chain, unknown>)[chain] = other;
+        else delete connectedWalletsByChain[chain as ConnectedChains];
+      }
+
+      endSession(wallet);
+    }
   }
 
   function disconnectAll() {
@@ -391,6 +427,7 @@ export function USwap<
     approveAssetValue,
     disconnectAll,
     disconnectChain,
+    disconnectWallet,
     estimateTransactionFee,
     getAddress,
     getAllWallets,

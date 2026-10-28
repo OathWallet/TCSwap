@@ -12,7 +12,6 @@ import type { WalletConnectModal } from "@walletconnect/modal";
 import type { SignClient } from "@walletconnect/sign-client";
 import type { SessionTypes } from "@walletconnect/types";
 import {
-  DEFAULT_APP_METADATA,
   DEFAULT_COSMOS_METHODS,
   DEFAULT_LOGGER,
   DEFAULT_NEAR_METHODS,
@@ -22,8 +21,10 @@ import {
 import { getEVMSigner } from "./evmSigner";
 import {
   chainToChainIds,
+  findRestorableSessions,
   findReusableSession,
   getAddressByChain,
+  getMetadata,
   getSessionAccounts,
   getSessionChainId,
 } from "./helpers";
@@ -31,6 +32,7 @@ import { getNamespaces } from "./namespaces";
 import type { WalletconnectOptions } from "./types";
 
 export * from "./constants";
+export { isWalletconnectDismissed } from "./helpers";
 export * from "./types";
 
 export const walletconnectWallet = createWallet({
@@ -43,17 +45,12 @@ export const walletconnectWallet = createWallet({
         throw new USwapError("wallet_walletconnect_project_id_not_specified");
       }
 
-      const walletconnect = await getWalletconnect(filteredChains, walletConnectProjectId, walletconnectOptions);
+      const approved = await enqueue(() =>
+        getWalletconnects(filteredChains, walletConnectProjectId, walletconnectOptions),
+      );
 
-      // The proposal asks for every chain as optional, so the wallet may approve only some of them.
-      const approvedChains = filteredChains.filter((chain) => getAddressByChain(chain, walletconnect.accounts));
-      if (approvedChains.length === 0) {
-        await walletconnect.disconnect();
-        throw new USwapError("wallet_walletconnect_chain_not_supported", { chains: filteredChains });
-      }
-
-      await Promise.all(
-        approvedChains.map(async (chain) => {
+      const added = await Promise.allSettled(
+        approved.map(async ({ chain, walletconnect }) => {
           const address = getAddressByChain(chain, walletconnect.accounts);
           const toolbox = await getToolbox({ address, chain, walletconnect });
 
@@ -66,6 +63,20 @@ export const walletconnectWallet = createWallet({
           });
         }),
       );
+
+      // A chain that failed to set up is left out like one the wallet did not approve, unless every chain failed.
+      const failures = approved.flatMap(({ chain }, index) => {
+        const result = added[index];
+        return result?.status === "rejected" ? [{ chain, reason: result.reason }] : [];
+      });
+      if (failures.length === approved.length) throw failures[0]?.reason;
+
+      for (const { chain, reason } of failures) {
+        console.warn(`WalletConnect: ${chain} was not connected`, reason);
+      }
+
+      // The chains set up are bound, so the sessions they replaced are ended.
+      bindChains(approved.filter((_, index) => added[index]?.status === "fulfilled"));
 
       return true;
     },
@@ -92,8 +103,37 @@ export const walletconnectWallet = createWallet({
   walletType: WalletOption.WALLETCONNECT,
 });
 
+/**
+ * Loads WalletConnect, connects to its relay and readies the QR modal ahead of a connect, so pressing
+ * connect opens the modal at once and its QR code follows a single relay round trip later. Pass the options the connect will use: the client keeps
+ * the first ones it is created with.
+ */
+export function preloadWalletconnect(walletconnectOptions?: WalletconnectOptions) {
+  const { walletConnectProjectId } = USwapConfig.get("apiKeys");
+  if (!walletConnectProjectId || typeof window === "undefined") return;
+
+  getSignClient(walletConnectProjectId, walletconnectOptions)
+    // The client opens its relay socket only on its first request, which costs that request ~0.5s.
+    // Not in the client's types, so called only where it exists.
+    .then((client) =>
+      (client.core.relayer as { toEstablishConnection?: () => Promise<void> }).toEstablishConnection?.(),
+    )
+    .catch(() => undefined);
+  getModal(walletConnectProjectId).catch(() => undefined);
+}
+
+// Finding or pairing a session runs one at a time: pairings share one QR modal, and one closing it
+// would cancel the other; two lookups at once would each miss the other's session and pair twice.
+let connectQueue: Promise<unknown> = Promise.resolve();
+
+function enqueue<T>(task: () => Promise<T>) {
+  const run = connectQueue.then(task);
+  connectQueue = run.catch(() => undefined);
+  return run;
+}
+
 export const WC_SUPPORTED_CHAINS = getWalletSupportedChains(walletconnectWallet);
-export type Walletconnect = Awaited<ReturnType<typeof getWalletconnect>>;
+export type Walletconnect = ReturnType<typeof toWalletconnect>;
 
 async function getToolbox<T extends (typeof WC_SUPPORTED_CHAINS)[number]>({
   chain,
@@ -308,7 +348,7 @@ type SignClientInstance = Awaited<ReturnType<typeof SignClient.init>>;
 // One client and one modal per page: every `SignClient.init` opens its own relay socket and storage,
 // and WalletConnect warns when it is initialised again.
 let clientPromise: Promise<SignClientInstance> | undefined;
-let modalInstance: WalletConnectModal | undefined;
+let modalPromise: Promise<WalletConnectModal> | undefined;
 
 function getSignClient(projectId: string, { restoreOnly: _, ...options }: WalletconnectOptions = {}) {
   clientPromise ??= import("@walletconnect/sign-client")
@@ -317,7 +357,7 @@ function getSignClient(projectId: string, { restoreOnly: _, ...options }: Wallet
         logger: DEFAULT_LOGGER,
         relayUrl: DEFAULT_RELAY_URL,
         ...options,
-        metadata: options.metadata || DEFAULT_APP_METADATA,
+        metadata: getMetadata(options.metadata),
         projectId,
       }),
     )
@@ -329,26 +369,39 @@ function getSignClient(projectId: string, { restoreOnly: _, ...options }: Wallet
   return clientPromise;
 }
 
-async function getModal(projectId: string) {
-  if (!modalInstance) {
-    const { WalletConnectModal } = await import("@walletconnect/modal");
-    modalInstance = new WalletConnectModal({ projectId });
-  }
+// The modal loads its UI and wallet list when created, and opens only once both are in. The list is fetched
+// once, and a failed fetch (an ad blocker, a network error) would keep the modal shut for the rest of the page's
+// life; past this it opens without the list, the QR code being all a pairing needs.
+const WALLET_LIST_TIMEOUT = 3000;
 
-  return modalInstance;
+function getModal(projectId: string) {
+  modalPromise ??= Promise.all([import("@walletconnect/modal"), import("@walletconnect/modal-core")])
+    .then(([{ WalletConnectModal }, { OptionsCtrl }]) => {
+      const modal = new WalletConnectModal({ projectId });
+      setTimeout(() => OptionsCtrl.setIsDataLoaded(true), WALLET_LIST_TIMEOUT);
+      return modal;
+    })
+    .catch((error) => {
+      modalPromise = undefined;
+      throw error;
+    });
+
+  return modalPromise;
 }
+
+// A modal whose UI fails to load would otherwise leave the connect waiting, with nothing on screen, until the
+// proposal expires.
+const MODAL_OPEN_TIMEOUT = 15_000;
+
+let pairings = 0;
 
 /** Shows the QR code until the wallet approves, rejects, or the user closes the modal. */
 async function pair(client: SignClientInstance, projectId: string, chains: Chain[]) {
-  const { uri, approval } = await client.connect({
-    optionalNamespaces: getNamespaces(chains.flatMap(chainToChainIds)),
-  });
-
-  if (!uri) {
-    throw new USwapError("wallet_walletconnect_connection_not_established");
-  }
-
+  const proposal = client.connect({ optionalNamespaces: getNamespaces(chains.flatMap(chainToChainIds)) });
+  // Handled below, once the modal is loaded; this only keeps a failed modal load from leaving it unhandled.
+  proposal.catch(() => undefined);
   const modal = await getModal(projectId);
+  const pairing = ++pairings;
 
   return new Promise<SessionTypes.Struct>((resolve, reject) => {
     let settled = false;
@@ -356,51 +409,175 @@ async function pair(client: SignClientInstance, projectId: string, chains: Chain
     const settle = (outcome: () => void) => {
       if (settled) return;
       settled = true;
+      clearTimeout(timeout);
       unsubscribe();
       modal.closeModal();
+      // Still loading, the modal would open after the connect is over; closed then, unless a later pairing has it.
+      for (const opening of openings) {
+        opening.then(() => pairing === pairings && modal.closeModal()).catch(() => undefined);
+      }
       outcome();
     };
 
     // Without this the caller waits until the proposal expires, minutes after the modal is gone.
     const unsubscribe = modal.subscribeModal(({ open }) => {
       if (!open) {
-        settle(() => reject(new USwapError("wallet_walletconnect_connection_not_established", { reason: "closed" })));
+        settle(() => reject(new USwapError("wallet_walletconnect_modal_closed")));
       }
     });
 
-    approval().then(
-      (session) => settle(() => resolve(session)),
-      (error) => settle(() => reject(new USwapError("wallet_walletconnect_connection_not_established", error))),
+    // Opened before the proposal has its uri (a relay round trip), the modal shows a spinner in place of the QR code.
+    const opening = modal.openModal();
+    const openings = [opening];
+    const timeout = setTimeout(() => {
+      const info = { reason: "The WalletConnect modal did not load" };
+      settle(() => reject(new USwapError({ errorKey: "wallet_walletconnect_connection_not_established", info })));
+    }, MODAL_OPEN_TIMEOUT);
+    opening.then(
+      () => clearTimeout(timeout),
+      (error) => settle(() => reject(error)),
     );
 
-    modal.openModal({ uri }).catch((error) => settle(() => reject(error)));
+    proposal.then(
+      ({ uri, approval }) => {
+        if (!uri) {
+          settle(() => reject(new USwapError("wallet_walletconnect_connection_not_established")));
+          return;
+        }
+
+        approval().then(
+          (session) => {
+            // Approved after the modal closed: the user cancelled, so the session is not kept for a later
+            // connect to pick up without a QR code.
+            if (settled) {
+              void endSession(client, session.topic);
+              return;
+            }
+            settle(() => resolve(session));
+          },
+          (error) => settle(() => reject(new USwapError("wallet_walletconnect_connection_not_established", error))),
+        );
+
+        if (!settled) openings.push(showUri(modal, uri));
+      },
+      (error) => settle(() => reject(new USwapError("wallet_walletconnect_connection_not_established", error))),
+    );
   });
 }
 
-async function getWalletconnect(chains: Chain[], projectId: string, walletconnectOptions?: WalletconnectOptions) {
+/**
+ * Hands the open modal the uri. Opening again sets it for the modal's links and copy button, but the QR element
+ * reads it only when created, so one already showing its spinner is given it directly (modal 2.7, the last
+ * release of `@walletconnect/modal`).
+ */
+function showUri(modal: WalletConnectModal, uri: string) {
+  const opening = modal.openModal({ uri });
+  opening.catch(() => undefined);
+
+  const root = document.querySelector("wcm-modal")?.shadowRoot;
+  for (const qr of root ? queryShadowAll(root, "wcm-walletconnect-qr") : []) {
+    (qr as Element & { uri?: string }).uri = uri;
+  }
+
+  return opening;
+}
+
+function queryShadowAll(root: ParentNode, selector: string): Element[] {
+  return [
+    ...root.querySelectorAll(selector),
+    ...[...root.querySelectorAll("*")].flatMap((el) => (el.shadowRoot ? queryShadowAll(el.shadowRoot, selector) : [])),
+  ];
+}
+
+const USER_DISCONNECTED = { code: 6000, message: "User disconnected" };
+
+type ApprovedChain<T extends Chain = Chain> = { chain: T; walletconnect: Walletconnect };
+
+/** The chains the wallet approved, each with the session it signs with. */
+async function getWalletconnects<T extends Chain>(
+  chains: T[],
+  projectId: string,
+  walletconnectOptions?: WalletconnectOptions,
+): Promise<ApprovedChain<T>[]> {
   const client = await getSignClient(projectId, walletconnectOptions).catch((error) => {
     throw new USwapError("wallet_walletconnect_connection_not_established", error);
   });
 
-  let session = findReusableSession(client.session.getAll(), chains);
+  const sessions = client.session.getAll().filter((session) => !endingTopics.has(session.topic));
 
-  if (!session) {
-    if (walletconnectOptions?.restoreOnly) {
-      throw new USwapError("wallet_walletconnect_connection_not_established", { reason: "no_session" });
-    }
+  if (walletconnectOptions?.restoreOnly) {
+    // Each chain from the newest session that approved it: chains connected at different times sit in
+    // different sessions, and one proposed a chain need not have approved it.
+    const restored = findRestorableSessions(sessions, chains);
+    if (restored.length === 0) throw new USwapError("wallet_walletconnect_connection_not_established");
 
-    // Earlier sessions stay: chains connected through them still sign with their topic. Each ends
-    // with its chains' `disconnect`, or expires.
-    session = await pair(client, projectId, chains);
+    const byTopic = new Map<string, Walletconnect>();
+    return restored.map(({ chain, session }) => {
+      const walletconnect = byTopic.get(session.topic) ?? toWalletconnect(client, session);
+      byTopic.set(session.topic, walletconnect);
+      return { chain, walletconnect };
+    });
   }
 
+  const session = findReusableSession(sessions, chains) ?? (await pair(client, projectId, chains));
+  const walletconnect = toWalletconnect(client, session);
+
+  // The proposal asks for every chain as optional, so the wallet may approve only some of them.
+  const approved = chains.filter((chain) => getAddressByChain(chain, walletconnect.accounts));
+  if (approved.length === 0) {
+    await walletconnect.disconnect();
+    throw new USwapError("wallet_walletconnect_chain_not_supported", { chains });
+  }
+
+  return approved.map((chain) => ({ chain, walletconnect }));
+}
+
+// The session each connected chain signs with. One no chain signs with any more is ended: left alone,
+// a later connect would pick it up without a QR code, even after the user disconnected.
+const chainTopics = new Map<Chain, string>();
+
+function bindChains(approved: ApprovedChain[]) {
+  const replaced = new Set(approved.map(({ chain }) => chainTopics.get(chain)));
+
+  for (const { chain, walletconnect } of approved) {
+    chainTopics.set(chain, walletconnect.session.topic);
+  }
+
+  const inUse = new Set(chainTopics.values());
+  const client = approved[0]?.walletconnect.client;
+  for (const topic of replaced) {
+    if (client && topic && !inUse.has(topic)) void endSession(client, topic);
+  }
+}
+
+// Sessions being ended, which no connect picks up meanwhile.
+const endingTopics = new Set<string>();
+
+async function endSession(client: SignClientInstance, topic: string) {
+  if (endingTopics.has(topic) || !client.session.getAll().some((s) => s.topic === topic)) return;
+  endingTopics.add(topic);
+
+  try {
+    await client.disconnect({ reason: USER_DISCONNECTED, topic });
+  } catch {
+    // Offline, or the request failed: the session is still stored, where a later connect would reuse it without
+    // a QR code. Dropped here, it stays with the wallet until it expires.
+    await client.session.delete(topic, USER_DISCONNECTED).catch(() => undefined);
+  } finally {
+    endingTopics.delete(topic);
+  }
+}
+
+function toWalletconnect(client: SignClientInstance, session: SessionTypes.Struct) {
   const { topic } = session;
   const accounts = getSessionAccounts(session);
 
-  // Every connected chain shares this; only the first call reaches the wallet.
-  const disconnect = async () => {
-    if (!client.session.getAll().some((s) => s.topic === topic)) return;
-    await client.disconnect({ reason: { code: 6000, message: "User disconnected" }, topic }).catch(() => undefined);
+  // Every chain of the session shares this; calls made while the session is being ended do nothing.
+  const disconnect = () => {
+    for (const [chain, chainTopic] of chainTopics) {
+      if (chainTopic === topic) chainTopics.delete(chain);
+    }
+    return endSession(client, topic);
   };
 
   return { accounts, client, disconnect, session };

@@ -122,6 +122,7 @@ const errorCodes = {
   wallet_walletconnect_chain_not_supported: 20404,
   wallet_walletconnect_invalid_method: 20405,
   wallet_walletconnect_method_not_supported: 20406,
+  wallet_walletconnect_modal_closed: 20407,
   /**
    * Wallets - Trezor
    */

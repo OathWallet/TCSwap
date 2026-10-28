@@ -13,6 +13,7 @@ import {
   BERACHAIN_MAINNET_ID,
   BSC_MAINNET_ID,
   COSMOS_HUB_MAINNET_ID,
+  DEFAULT_APP_METADATA,
   ETHEREUM_MAINNET_ID,
   KUJIRA_MAINNET_ID,
   MAYACHAIN_MAINNET_ID,
@@ -26,6 +27,7 @@ import {
   TRON_MAINNET_ID,
   XLAYER_MAINNET_ID,
 } from "./constants";
+import type { WalletconnectOptions } from "./types";
 
 /**
  * Every CAIP-2 id a wallet may know the chain by, preferred first. A session request offers all of
@@ -120,4 +122,31 @@ export function findReusableSession(sessions: SessionTypes.Struct[], chains: Cha
         chains.some((chain) => getAddressByChain(chain, accounts))
       );
     });
+}
+
+// Each chain with the newest live session the wallet approved it in: chains connected at different
+// times sit in different sessions.
+export function findRestorableSessions<T extends Chain>(sessions: SessionTypes.Struct[], chains: T[]) {
+  const now = Date.now() / 1000;
+  const live = sessions.filter((session) => session.expiry > now).sort((a, b) => b.expiry - a.expiry);
+
+  return chains.flatMap((chain) => {
+    const session = live.find((session) => getAddressByChain(chain, getSessionAccounts(session)));
+    return session ? [{ chain, session }] : [];
+  });
+}
+
+// WalletConnect's Verify API flags a `url` other than the page's own origin as a domain mismatch.
+export function getMetadata(metadata: WalletconnectOptions["metadata"] = {}) {
+  const origin = typeof window === "undefined" ? DEFAULT_APP_METADATA.url : window.location.origin;
+  // An app that names itself does not borrow TCSwap's description and logo.
+  const defaults = metadata.name ? { description: "", icons: [], name: metadata.name } : DEFAULT_APP_METADATA;
+  return { ...defaults, ...metadata, url: metadata.url || origin };
+}
+
+/** The user closed the QR modal: a cancel rather than a failure. */
+export function isWalletconnectDismissed(error: unknown) {
+  // By message rather than `instanceof`, which fails when two copies of the helpers are installed.
+  const message = (error as { message?: unknown } | undefined)?.message;
+  return typeof message === "string" && message.startsWith("wallet_walletconnect_modal_closed");
 }
