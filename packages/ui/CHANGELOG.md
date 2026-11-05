@@ -1,5 +1,17 @@
 <!-- Modifications © 2025 Horizontal Systems. -->
 
+## 0.3.37
+
+### Patch Changes
+
+- Add Binance Wallet
+
+- Updated dependencies []:
+  - @tcswap/helpers@4.5.29
+  - @tcswap/wallets@4.3.37
+  - @tcswap/sdk@4.2.37
+  - @tcswap/wallet-keystore@4.1.33
+
 ## 0.3.36
 
 ### Patch Changes

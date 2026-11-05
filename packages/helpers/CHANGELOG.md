@@ -1,5 +1,11 @@
 <!-- Modifications © 2025 Horizontal Systems. -->
 
+## 4.5.29
+
+### Patch Changes
+
+- Add Binance Wallet
+
 ## 4.5.28
 
 ### Patch Changes

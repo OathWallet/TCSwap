@@ -1,5 +1,19 @@
 <!-- Modifications © 2025 Magic Systems. -->
 
+## 4.3.37
+
+### Patch Changes
+
+- Add Binance Wallet
+
+- Updated dependencies []:
+  - @tcswap/wallet-extensions@4.1.36
+  - @tcswap/toolboxes@4.3.33
+  - @tcswap/helpers@4.5.29
+  - @tcswap/wallet-hardware@4.2.35
+  - @tcswap/wallet-keystore@4.1.33
+  - @tcswap/wallet-core@4.0.73
+
 ## 4.3.36
 
 ### Patch Changes
