@@ -5,6 +5,7 @@
 "use client";
 
 import { Chain, EVMChains, WalletOption } from "@tcswap/helpers";
+import { BINANCE_SUPPORTED_CHAINS } from "@tcswap/wallets/binance";
 import { BITGET_SUPPORTED_CHAINS } from "@tcswap/wallets/bitget";
 import { BRAVE_SUPPORTED_CHAINS } from "@tcswap/wallets/brave";
 import { EXODUS_SUPPORTED_CHAINS } from "@tcswap/wallets/exodus";
@@ -78,6 +79,9 @@ const AllChainsSupported = [
 ];
 
 export const availableChainsByWallet: Record<WalletOption, Chain[] | readonly Chain[]> = {
+  // No Bitcoin here: the connector keeps it for the Binance App's in-app dApp browser, but the
+  // browser extension this dialog talks to serves EVM, Solana and TRON only.
+  [WalletOption.BINANCE]: BINANCE_SUPPORTED_CHAINS.filter((chain) => chain !== Chain.Bitcoin),
   [WalletOption.BITGET]: BITGET_SUPPORTED_CHAINS,
   [WalletOption.BRAVE]: BRAVE_SUPPORTED_CHAINS,
   [WalletOption.COINBASE_MOBILE]: EVMChains,

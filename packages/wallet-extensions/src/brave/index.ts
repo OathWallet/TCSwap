@@ -6,6 +6,7 @@ import { Chain, type EVMChain, EVMChains, filterSupportedChains, USwapError, Wal
 import type { SolanaProvider } from "@tcswap/toolboxes/solana";
 import { createWallet, getWalletSupportedChains } from "@tcswap/wallet-core";
 import type { Eip1193Provider } from "ethers";
+import { connectChainProviders, connectSolanaProvider, createEVMWalletMethods } from "../helpers/multi-provider";
 
 /**
  * Brave Wallet: an EVM account (`window.braveEthereum`) and a Solana account (`window.braveSolana`).
@@ -13,7 +14,9 @@ import type { Eip1193Provider } from "ethers";
  */
 const BRAVE_RDNS = "com.brave.wallet";
 
-const connectedEVMChains = new Set<EVMChain>();
+// Standalone so `getWalletMethods` can be typed from it: typing it from the wallet object would
+// make the wallet's own type inference circular now that `connectChainProviders` infers from both.
+const braveChains = [...EVMChains, Chain.Solana];
 
 type BraveFlagged = { isBraveWallet?: boolean };
 type Listenable<Event extends string, Handler> = {
@@ -31,42 +34,21 @@ export const braveWallet = createWallet({
     async function connectBrave(chains: Chain[]) {
       const filteredChains = filterSupportedChains({ chains, supportedChains, walletType });
 
-      const failures: unknown[] = [];
-
-      const connectChain = async (chain: (typeof filteredChains)[number]) => {
-        try {
-          const { address, ...walletMethods } = await getWalletMethods(chain);
-
-          addChain({ ...walletMethods, address, chain, walletType });
-        } catch (error) {
-          failures.push(error);
-          console.warn(`Brave Wallet failed to connect ${chain}:`, error);
-        }
-      };
-
-      // EVM chains share one provider, so only the first connect opens Brave's approval.
-      const evmChains = filteredChains.filter((chain) => EVMChains.includes(chain as EVMChain));
-      const otherChains = filteredChains.filter((chain) => !EVMChains.includes(chain as EVMChain));
-
-      const connectEVMChains = async () => {
-        for (const chain of evmChains) {
-          await connectChain(chain);
-        }
-      };
-
-      await Promise.all([connectEVMChains(), ...otherChains.map(connectChain)]);
-
-      if (failures.length === filteredChains.length) throw failures[0];
-
-      return true;
+      return await connectChainProviders({
+        addChain,
+        chains: filteredChains,
+        getWalletMethods,
+        walletName: "Brave Wallet",
+        walletType,
+      });
     },
   name: "connectBrave",
-  supportedChains: [...EVMChains, Chain.Solana],
+  supportedChains: braveChains,
   walletType: WalletOption.BRAVE,
 });
 
 export const BRAVE_SUPPORTED_CHAINS = getWalletSupportedChains(braveWallet);
-export type BraveSupportedChain = (typeof BRAVE_SUPPORTED_CHAINS)[number];
+export type BraveSupportedChain = (typeof braveChains)[number];
 
 function getWalletMethods(chain: BraveSupportedChain) {
   if (chain === Chain.Solana) return getSolanaWalletMethods();
@@ -75,55 +57,17 @@ function getWalletMethods(chain: BraveSupportedChain) {
   throw new USwapError("wallet_brave_chain_not_supported", { chain });
 }
 
-async function getEVMWalletMethods(chain: EVMChain) {
-  const walletProvider = getBraveEVMProvider();
-  if (!walletProvider) throw new USwapError("wallet_brave_evm_not_found");
+const getEVMWalletMethods = createEVMWalletMethods({
+  getProvider: getBraveEVMProvider,
+  notFoundError: "wallet_brave_evm_not_found",
+});
 
-  const { BrowserProvider } = await import("ethers");
-  const { getWeb3WalletMethods } = await import("../evm-extensions");
-
-  const provider = new BrowserProvider(walletProvider, "any");
-
-  // `eth_accounts` answers without a prompt once the site is approved.
-  const approved: string[] = await provider.send("eth_accounts", []);
-  if (approved.length === 0) await provider.send("eth_requestAccounts", []);
-
-  const signer = await provider.getSigner();
-  const address = await signer.getAddress();
-
-  const walletMethods = await getWeb3WalletMethods({ address, chain, provider, walletProvider });
-
-  // The permission covers every EVM chain, so revoke only when the last one disconnects. A build
-  // without `wallet_revokePermissions` must not throw.
-  connectedEVMChains.add(chain);
-  const disconnect = () => {
-    connectedEVMChains.delete(chain);
-    if (connectedEVMChains.size > 0) return Promise.resolve();
-
-    return provider.send("wallet_revokePermissions", [{ eth_accounts: {} }]).then(
-      () => undefined,
-      () => undefined,
-    );
-  };
-
-  return { ...walletMethods, address, disconnect };
-}
-
-async function getSolanaWalletMethods() {
-  const provider = getBraveSolanaProvider();
-  if (!provider) throw new USwapError("wallet_brave_solana_not_found");
-
-  const { getSolanaToolbox } = await import("@tcswap/toolboxes/solana");
-
-  // `onlyIfTrusted` reconnects an approved site silently and rejects on a new one.
-  const connection = await provider.connect({ onlyIfTrusted: true }).catch(() => provider.connect());
-  const address = (connection?.publicKey || provider.publicKey)?.toString();
-  if (!address) throw new USwapError("wallet_brave_no_address", { chain: Chain.Solana });
-
-  const toolbox = await getSolanaToolbox({ signer: provider });
-  const disconnect = () => provider.disconnect().catch(() => undefined);
-
-  return { ...toolbox, address, disconnect };
+function getSolanaWalletMethods() {
+  return connectSolanaProvider({
+    noAddressError: "wallet_brave_no_address",
+    notFoundError: "wallet_brave_solana_not_found",
+    provider: getBraveSolanaProvider(),
+  });
 }
 
 /** EIP-6963 goes last: requesting it makes every installed EVM wallet announce itself. */

@@ -6,6 +6,7 @@ export async function loadWallet<W extends WalletOption>(walletOption: W): Promi
 
   const wallet = await match(walletOption as WalletOption)
     .with(WalletOption.COINBASE_MOBILE, async () => (await import("./coinbase")).coinbaseWallet)
+    .with(WalletOption.BINANCE, async () => (await import("@tcswap/wallet-extensions/binance")).binanceWallet)
     .with(WalletOption.BITGET, async () => (await import("@tcswap/wallet-extensions/bitget")).bitgetWallet)
     .with(WalletOption.BRAVE, async () => (await import("@tcswap/wallet-extensions/brave")).braveWallet)
     .with(WalletOption.CTRL, async () => (await import("@tcswap/wallet-extensions/ctrl")).ctrlWallet)

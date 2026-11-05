@@ -244,8 +244,9 @@ export const METAMASK_RDNS = "io.metamask";
 export const RABBY_RDNS = "io.rabby";
 
 /**
- * MetaMask by its EIP-6963 announcement, else `window.ethereum` unless Brave or Rabby holds it — Rabby, as default
- * wallet, takes it and flags it isMetaMask as well. Other wallets injecting there without announcing pass as MetaMask.
+ * MetaMask by its EIP-6963 announcement, else `window.ethereum` unless Brave, Rabby or Binance holds it — Rabby and
+ * Binance, as default wallet, take it and flag it isMetaMask as well. Other wallets injecting there without
+ * announcing pass as MetaMask.
  */
 export function getMetaMaskProvider() {
   if (typeof window === "undefined") return undefined;
@@ -253,7 +254,7 @@ export function getMetaMaskProvider() {
   const ethereum = window.ethereum;
   return (
     getEIP6963Provider(METAMASK_RDNS) ??
-    (ethereum && !ethereum.isBraveWallet && !ethereum.isRabby ? ethereum : undefined)
+    (ethereum && !ethereum.isBraveWallet && !ethereum.isRabby && !ethereum.isBinance ? ethereum : undefined)
   );
 }
 

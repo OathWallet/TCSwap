@@ -32,8 +32,12 @@ import {
   compileMemo,
   getDustThreshold,
   getInputSize,
+  getOutputSize,
+  getScriptTypeForAddress,
   getUtxoApi,
   getUtxoNetwork,
+  InputSizes,
+  TX_OVERHEAD,
   UTXOScriptType,
 } from "../helpers";
 import type { BchECPair, TargetOutput, UTXOBuildTxParams, UTXOTransferParams, UTXOType } from "../types";
@@ -227,11 +231,50 @@ async function getInputsOutputsFee({
 }: Omit<UTXOBuildTxParams, "feeRate"> & { feeOptionKey?: FeeOption; feeRate?: number }) {
   const chain = assetValue.chain as UTXOChain;
 
-  const inputsAndOutputs = await getInputsAndTargetOutputs({ assetValue, memo, recipient, sender });
-
   const feeRateWhole = feeRate ? Math.floor(feeRate) : (await getFeeRates(chain))[feeOptionKey];
 
+  let inputsAndOutputs: Awaited<ReturnType<typeof getInputsAndTargetOutputs>>;
+  try {
+    inputsAndOutputs = await getInputsAndTargetOutputs({ assetValue, memo, recipient, sender });
+  } catch {
+    // Every UTXO source failed (see getUtxoApi); a fee estimate can still be priced without them.
+    return { fee: await estimateFeeWithoutUtxos({ assetValue, feeRate: feeRateWhole, memo, recipient, sender }) };
+  }
+
   return accumulative({ ...inputsAndOutputs, chain, feeRate: feeRateWhole });
+}
+
+// Priced as a typical spend: this many inputs of the sender's script type, the target outputs
+// and change. Erring high keeps a max send built from it spendable; coin selection sets the
+// real fee when the transaction is built.
+const ESTIMATED_INPUT_COUNT = 2;
+
+async function estimateFeeWithoutUtxos({
+  assetValue,
+  feeRate,
+  memo,
+  recipient,
+  sender,
+}: Omit<UTXOBuildTxParams, "feeRate"> & { feeRate: number }) {
+  let scriptType = UTXOScriptType.P2PKH;
+  try {
+    scriptType = getScriptTypeForAddress(sender);
+  } catch {
+    // An address format txSize doesn't know; P2PKH is the larger input anyway.
+  }
+
+  const outputs: TargetOutput[] = [
+    { address: recipient, value: assetValue.getBaseValue("number") },
+    ...(memo ? [{ address: "", script: await compileMemo(memo), value: 0 }] : []),
+    { address: sender, value: 0 }, // change
+  ];
+
+  const txSize =
+    TX_OVERHEAD +
+    ESTIMATED_INPUT_COUNT * InputSizes[scriptType] +
+    outputs.reduce((total, output) => total + getOutputSize(output, output.script ? undefined : scriptType), 0);
+
+  return txSize * Math.ceil(feeRate);
 }
 
 function estimateMaxSendableAmount(chain: UTXOChain) {

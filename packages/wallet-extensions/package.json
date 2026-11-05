@@ -31,6 +31,12 @@
       "require": "./dist/index.cjs",
       "types": "./dist/types/types.d.ts"
     },
+    "./binance": {
+      "bun": "./src/binance/index.ts",
+      "default": "./dist/binance/index.js",
+      "require": "./dist/binance/index.cjs",
+      "types": "./dist/types/binance/index.d.ts"
+    },
     "./bitget": {
       "bun": "./src/bitget/index.ts",
       "default": "./dist/bitget/index.js",

@@ -287,6 +287,13 @@ const errorCodes = {
   wallet_brave_no_address: 24204,
 
   /**
+   * Wallets - Binance
+   */
+  wallet_binance_not_found: 24301,
+  wallet_binance_chain_not_supported: 24302,
+  wallet_binance_no_address: 24303,
+
+  /**
    * Chainflip
    */
   chainflip_channel_error: 30001,

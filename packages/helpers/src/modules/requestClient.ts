@@ -22,6 +22,10 @@ export type RequestOptions = RequestInit & {
   abortController?: AbortController;
 };
 
+// Rate-limit answers: 429, plus the codes Blockchair uses for an exhausted quota (402, 432) or
+// throttling (430, 434-437). Retrying within seconds can't succeed and spends more of the quota.
+const RATE_LIMIT_STATUSES = new Set([402, 429, 430, 432, 434, 435, 436, 437]);
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const calculateDelay = (attempt: number, { baseDelay, backoffMultiplier, maxDelay }: any) =>
   Math.min(baseDelay * backoffMultiplier ** attempt, maxDelay);
@@ -83,7 +87,8 @@ function fetchWithConfig(method: "GET" | "POST", extendOptions: RequestOptions =
         clearTimeout(timeoutId);
         lastError = error;
 
-        if (attempt >= retryConfig.maxRetries) {
+        const isRateLimited = RATE_LIMIT_STATUSES.has((error as { cause?: { status?: number } })?.cause?.status ?? 0);
+        if (attempt >= retryConfig.maxRetries || isRateLimited) {
           return onError ? onError(error) : Promise.reject(error);
         }
 

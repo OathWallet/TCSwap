@@ -4,6 +4,7 @@ import type { EthereumWindowProvider } from "@tcswap/helpers";
 import type { SolanaProvider } from "@tcswap/toolboxes/solana";
 import type { SubstrateInjectedExtension } from "@tcswap/toolboxes/substrate";
 import type { Eip1193Provider } from "ethers";
+import type { BinanceBitcoinProvider, BinanceTronProvider } from "./binance";
 import type { NearBrowserWalletProvider } from "./helpers/near";
 import type { TronLinkWindow } from "./tronlink";
 
@@ -23,6 +24,12 @@ export type VultisigCosmosProvider = {
 
 declare global {
   interface Window {
+    binancew3w?: {
+      ethereum?: Eip1193Provider;
+      solana?: SolanaProvider;
+      bitcoin?: BinanceBitcoinProvider;
+      tron?: BinanceTronProvider;
+    };
     injectedWeb3?: SubstrateInjectedExtension;
     talismanEth?: EthereumWindowProvider;
     $onekey?: any;

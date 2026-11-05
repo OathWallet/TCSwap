@@ -12,6 +12,7 @@ declare global {
 
 export type EthereumWindowProvider = BrowserProvider & {
   __XDEFI?: boolean;
+  isBinance?: boolean;
   isBraveWallet?: boolean;
   isCoinbaseWallet?: boolean;
   isExodus?: boolean;
@@ -36,6 +37,7 @@ export type NetworkParams = {
 };
 
 export enum WalletOption {
+  BINANCE = "BINANCE",
   BITGET = "BITGET",
   BRAVE = "BRAVE",
   COINBASE_MOBILE = "COINBASE_MOBILE",

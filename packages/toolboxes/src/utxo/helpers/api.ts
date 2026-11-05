@@ -17,6 +17,7 @@ type BlockchairFetchUnspentUtxoParams = BlockchairParams<{
   address: string;
   targetValue?: number;
   accumulativeValue?: number;
+  keyless?: boolean;
 }>;
 
 async function broadcastUTXOTx({ chain, txHash }: { chain: Chain; txHash: string }) {
@@ -64,9 +65,13 @@ async function broadcastUTXOTx({ chain, txHash }: { chain: Chain; txHash: string
   }
 }
 
-function baseUrl(chain: Chain) {
+const BLOCKCHAIR_URL = "https://api.blockchair.com";
+
+// `keyless` goes straight to Blockchair's free tier (1440 requests a day per IP), bypassing
+// any configured proxy and its key.
+function baseUrl(chain: Chain, keyless = false) {
   const customUrl = USwapConfig.get("envs").blockchairApiUrl;
-  const host = customUrl ?? "https://api.blockchair.com";
+  const host = keyless ? BLOCKCHAIR_URL : (customUrl ?? BLOCKCHAIR_URL);
   return `${host}/${mapChainToBlockchairChain(chain)}`;
 }
 
@@ -122,15 +127,16 @@ async function getSuggestedTxFee(chain: Chain) {
   }
 }
 
-// Balance and UTXO reads run on every balance refresh. Where a fallback (see
-// UTXO_FALLBACKS) exists, a failure moves on to it at once instead of retrying (retries also
-// spend the Blockchair quota); other chains keep the default retries.
+// Balance and UTXO reads run on every balance refresh. Blockchair answers 402/429/43x once
+// a key (or, without one, the caller's IP) is out of quota, and retrying only spends more of
+// it, so each call is made once and a failure moves straight on to the next source (see
+// utxoFallbacks).
 const noRetry = { retry: { maxRetries: 0 }, timeoutMs: 10_000 };
 
-async function blockchairRequest<T>(url: string, chain: Chain, apiKey?: string): Promise<T> {
+async function blockchairRequest<T>(url: string, apiKey?: string): Promise<T> {
   const response = await RequestClient.get<BlockchairResponse<T>>(
     `${url}${apiKey ? `${url.includes("?") ? "&" : "?"}key=${apiKey}` : ""}`,
-    UTXO_FALLBACKS[chain] ? noRetry : undefined,
+    noRetry,
   );
 
   if (!response || response.context.code !== 200)
@@ -148,7 +154,6 @@ async function getAddressData({ address, chain, apiKey }: BlockchairParams<{ add
       async () => {
         const response = await blockchairRequest<BlockchairAddressResponse>(
           `${baseUrl(chain)}/dashboards/address/${address}?transaction_details=true`,
-          chain,
           apiKey,
         );
         return response[address];
@@ -175,7 +180,6 @@ async function getRawTx({ chain, apiKey, txHash }: BlockchairParams<{ txHash?: s
       async () => {
         const rawTxResponse = await blockchairRequest<BlockchairRawTransactionResponse>(
           `${baseUrl(chain)}/raw/transaction/${txHash}`,
-          chain,
           apiKey,
         );
         return rawTxResponse?.[txHash]?.raw_transaction || "";
@@ -189,15 +193,21 @@ async function getRawTx({ chain, apiKey, txHash }: BlockchairParams<{ txHash?: s
   }
 }
 
-async function fetchUtxosBatch({ chain, address, apiKey, offset = 0, limit = 30 }: BlockchairFetchUnspentUtxoParams) {
+async function fetchUtxosBatch({
+  chain,
+  address,
+  apiKey,
+  keyless,
+  offset = 0,
+  limit = 30,
+}: BlockchairFetchUnspentUtxoParams) {
   // Only fetch the fields we need to reduce payload size
   const fields = "is_spent,transaction_hash,index,value,script_hex,block_id,spending_signature_hex";
 
   const response = await blockchairRequest<BlockchairOutputsResponse[]>(
     // TODO - remove max value limit once we updated bitcoinjs-lib to support larger values
-    `${baseUrl(chain)}/outputs?q=recipient(${address}),is_spent(false),value(..2000000000000000)&s=value(desc)&fields=${fields}&limit=${limit}&offset=${offset}`,
-    chain,
-    apiKey,
+    `${baseUrl(chain, keyless)}/outputs?q=recipient(${address}),is_spent(false),value(..2000000000000000)&s=value(desc)&fields=${fields}&limit=${limit}&offset=${offset}`,
+    keyless ? undefined : apiKey,
   );
 
   const txs = response.map(
@@ -245,6 +255,7 @@ async function getUnspentUtxos({
   chain,
   address,
   apiKey,
+  keyless,
   targetValue,
   accumulativeValue = 0,
   offset = 0,
@@ -252,7 +263,7 @@ async function getUnspentUtxos({
 }: BlockchairFetchUnspentUtxoParams): Promise<Awaited<ReturnType<typeof fetchUtxosBatch>>> {
   if (!address) throw new USwapError("toolbox_utxo_invalid_params", { error: "Address is required" });
 
-  const utxos = await fetchUtxosBatch({ address, apiKey, chain, limit, offset, targetValue });
+  const utxos = await fetchUtxosBatch({ address, apiKey, chain, keyless, limit, offset, targetValue });
   const utxosCount = utxos.length;
   const isComplete = utxosCount < limit;
 
@@ -272,6 +283,7 @@ async function getUnspentUtxos({
     address,
     apiKey,
     chain,
+    keyless,
     limit,
     offset: offset + limit,
     targetValue,
@@ -297,11 +309,13 @@ async function getUtxos({
       chain,
       () => getUnspentUtxos({ address, apiKey, chain, targetValue }),
       async (api) => {
-        const picked = pickMostValuableTxs(await api.getUtxos(address, chain), targetValue);
+        const picked = pickMostValuableTxs(await api.getUtxos(address, chain, targetValue), targetValue);
         if (!fetchTxHex) return picked;
         // Take the raw txs from the same source rather than going back to Blockchair once
         // per input. (BlockCypher paces its own requests; see blockCypherGet.)
-        return Promise.all(picked.map(async (utxo) => ({ ...utxo, txHex: await api.getRawTx(utxo.hash) })));
+        return Promise.all(
+          picked.map(async (utxo) => ({ ...utxo, txHex: utxo.txHex || (await api.getRawTx(utxo.hash)) })),
+        );
       },
     );
   } catch (error) {
@@ -329,13 +343,14 @@ async function getUtxos({
   return results;
 }
 
-// Keyless, CORS-enabled APIs that answer when Blockchair fails -- e.g. its key
-// is out of quota. Tried in order after Blockchair; each sits behind the same
-// interface so a chain can list as many as it needs.
+// Keyless APIs that answer when Blockchair fails -- e.g. its key is out of quota.
+// Tried in order after Blockchair; each sits behind the same interface so a chain
+// can list as many as it needs.
 type FallbackUtxo = Awaited<ReturnType<typeof fetchUtxosBatch>>[number];
 type UtxoFallback = {
   name: string;
-  getUtxos: (address: string, chain: Chain) => Promise<FallbackUtxo[]>;
+  // `targetValue` lets a source that needs a call per UTXO stop at the ones it will be picked for.
+  getUtxos: (address: string, chain: Chain, targetValue?: number) => Promise<FallbackUtxo[]>;
   getAddressData: (address: string) => Promise<BlockchairAddressResponse[string]>;
   getRawTx: (txHash: string) => Promise<string>;
 };
@@ -358,7 +373,7 @@ function coolDown(source: string, error: unknown) {
 }
 
 async function withFallback<T>(chain: Chain, primary: () => Promise<T>, fallback: (api: UtxoFallback) => Promise<T>) {
-  const fallbacks = UTXO_FALLBACKS[chain] ?? [];
+  const fallbacks = utxoFallbacks(chain);
   if (!fallbacks.length) return primary();
 
   const sources = [
@@ -554,11 +569,43 @@ function blockCypher(coin: string): UtxoFallback {
   };
 }
 
+// Blockchair's free tier, for when the configured key (or the proxy that adds it) is out of
+// quota. It is limited per IP, so in a browser each user spends their own allowance.
+function blockchairKeyless(chain: Chain): UtxoFallback {
+  const base = baseUrl(chain, true);
+
+  return {
+    getAddressData: async (address) => {
+      const response = await blockchairRequest<BlockchairAddressResponse>(
+        `${base}/dashboards/address/${address}?transaction_details=true`,
+      );
+      const data = response[address];
+      if (!data) throw new Error(`${base}/dashboards/address/${address}: no data`);
+      return data;
+    },
+    getRawTx: async (txHash) => {
+      const response = await blockchairRequest<BlockchairRawTransactionResponse>(`${base}/raw/transaction/${txHash}`);
+      const rawTx = response?.[txHash]?.raw_transaction;
+      if (!rawTx) throw new Error(`${base}/raw/transaction/${txHash}: no raw transaction`);
+      return rawTx;
+    },
+    getUtxos: (address, _chain, targetValue) => getUnspentUtxos({ address, chain, keyless: true, targetValue }),
+    name: `${base}:keyless`,
+  };
+}
+
 const UTXO_FALLBACKS: Partial<Record<Chain, UtxoFallback[]>> = {
   [Chain.Bitcoin]: [esplora("https://mempool.space/api"), esplora("https://blockstream.info/api")],
   // litecoinspace.org is the only public Litecoin Esplora, and its address index can stall for minutes.
   [Chain.Litecoin]: [esplora("https://litecoinspace.org/api"), blockCypher("ltc")],
 };
+
+// After Blockchair as configured: its free tier (unless that is already what was tried), then
+// the chain's own fallbacks.
+function utxoFallbacks(chain: Chain): UtxoFallback[] {
+  const configuredIsKeyless = !(USwapConfig.get("envs").blockchairApiUrl || USwapConfig.get("apiKeys").blockchair);
+  return [...(configuredIsKeyless ? [] : [blockchairKeyless(chain)]), ...(UTXO_FALLBACKS[chain] ?? [])];
+}
 
 export function getUtxoApi(chain: UTXOChain) {
   const apiKey = USwapConfig.get("apiKeys").blockchair || "";
