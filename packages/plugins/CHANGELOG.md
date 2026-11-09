@@ -1,5 +1,15 @@
 # @tcswap/plugins
 
+## 4.2.34
+
+### Patch Changes
+
+- Include amount, spendable total and UTXO count in toolbox_utxo_insufficient_balance, and report a user-rejected deposit as rejected instead of a gas error
+
+- Updated dependencies []:
+  - @tcswap/toolboxes@4.3.34
+  - @tcswap/helpers@4.5.29
+
 ## 4.2.33
 
 ### Patch Changes

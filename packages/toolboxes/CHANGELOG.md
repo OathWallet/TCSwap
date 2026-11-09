@@ -1,5 +1,14 @@
 <!-- Modifications © 2025 Horizontal Systems. -->
 
+## 4.3.34
+
+### Patch Changes
+
+- Include amount, spendable total and UTXO count in toolbox_utxo_insufficient_balance, and report a user-rejected deposit as rejected instead of a gas error
+
+- Updated dependencies []:
+  - @tcswap/helpers@4.5.29
+
 ## 4.3.33
 
 ### Patch Changes

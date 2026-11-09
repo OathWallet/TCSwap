@@ -1,5 +1,16 @@
 <!-- Modifications © 2025 Magic Systems. -->
 
+## 4.3.38
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tcswap/toolboxes@4.3.34
+  - @tcswap/helpers@4.5.29
+  - @tcswap/wallet-extensions@4.1.37
+  - @tcswap/wallet-hardware@4.2.36
+  - @tcswap/wallet-keystore@4.1.34
+
 ## 4.3.37
 
 ### Patch Changes
