@@ -197,14 +197,16 @@ function createTCBasedPlugin<T extends TCLikeChain>(pluginChain: T) {
         const isGas = errorMessage?.includes("gas");
         const isServer = errorMessage?.includes("server");
         const isUserRejected = errorMessage?.includes("user rejected");
-        const errorKey: ErrorKeys = isInsufficientFunds
-          ? "core_transaction_deposit_insufficient_funds_error"
-          : isGas
-            ? "core_transaction_deposit_gas_error"
-            : isServer
-              ? "core_transaction_deposit_server_error"
-              : isUserRejected
-                ? "core_transaction_user_rejected"
+        // A rejection must win: ethers serialises the whole tx into the message, so a rejected
+        // deposit also matches "gas" (gasLimit) and would otherwise read as a fee failure.
+        const errorKey: ErrorKeys = isUserRejected
+          ? "core_transaction_user_rejected"
+          : isInsufficientFunds
+            ? "core_transaction_deposit_insufficient_funds_error"
+            : isGas
+              ? "core_transaction_deposit_gas_error"
+              : isServer
+                ? "core_transaction_deposit_server_error"
                 : "core_transaction_deposit_error";
 
         throw new USwapError(errorKey, error);

@@ -2,7 +2,7 @@
  * Modifications © 2025 Horizontal Systems.
  */
 
-import { Chain, USwapError, type UTXOChain } from "@tcswap/helpers";
+import { type AssetValue, Chain, USwapError, type UTXOChain } from "@tcswap/helpers";
 
 import {
   calculateTxSize,
@@ -29,6 +29,25 @@ export function getDustThreshold(chain: UTXOChain) {
     default:
       throw new USwapError("toolbox_utxo_not_supported", { chain });
   }
+}
+
+// Coin selection found no solution. Carry the evidence in the error itself: the amount asked
+// for and what the data source handed over let a client tell an empty or truncated UTXO list
+// (a data problem) apart from genuinely short funds, which the bare key cannot.
+// `spendable`/`utxoCount` describe the fetched list, which a targetValue-capped fetch may have
+// cut short of the wallet's full holdings - a lower bound, not a balance.
+export function insufficientBalanceError(utxos: { value: number }[], assetValue: AssetValue, sender: string) {
+  return new USwapError(
+    {
+      errorKey: "toolbox_utxo_insufficient_balance",
+      info: {
+        amount: assetValue.getBaseValue("string"),
+        spendable: utxos.reduce((total, { value }) => total + value, 0).toString(),
+        utxoCount: utxos.length,
+      },
+    },
+    { assetValue, sender },
+  );
 }
 
 export function accumulative({

@@ -19,7 +19,15 @@ import {
   updateDerivationPath,
 } from "@tcswap/helpers";
 import { Psbt } from "bitcoinjs-lib";
-import { accumulative, compileMemo, getUtxoApi, getUtxoNetwork, toCashAddress, toLegacyAddress } from "../helpers";
+import {
+  accumulative,
+  compileMemo,
+  getUtxoApi,
+  getUtxoNetwork,
+  insufficientBalanceError,
+  toCashAddress,
+  toLegacyAddress,
+} from "../helpers";
 import type {
   BchECPair,
   TargetOutput,
@@ -119,7 +127,7 @@ async function createTransaction({ assetValue, recipient, memo, feeRate, sender 
   const { inputs, outputs } = accumulative({ chain, feeRate, inputs: utxos, outputs: targetOutputs });
 
   // .inputs and .outputs will be undefined if no solution was found
-  if (!(inputs && outputs)) throw new USwapError("toolbox_utxo_insufficient_balance", { assetValue, sender });
+  if (!(inputs && outputs)) throw insufficientBalanceError(utxos, assetValue, sender);
   const getNetwork = await getUtxoNetwork();
   const builder = new TransactionBuilder(getNetwork(chain)) as TransactionBuilderType;
 
@@ -216,7 +224,7 @@ async function buildTx({
   const { inputs, outputs } = accumulative({ chain, feeRate: feeRateWhole, inputs: utxos, outputs: targetOutputs });
 
   // .inputs and .outputs will be undefined if no solution was found
-  if (!(inputs && outputs)) throw new USwapError("toolbox_utxo_insufficient_balance", { assetValue, sender });
+  if (!(inputs && outputs)) throw insufficientBalanceError(utxos, assetValue, sender);
   const getNetwork = await getUtxoNetwork();
   const psbt = new Psbt({ network: getNetwork(chain) }); // Network-specific
 

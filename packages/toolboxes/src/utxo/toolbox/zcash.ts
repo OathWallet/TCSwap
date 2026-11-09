@@ -19,7 +19,7 @@ import {
 } from "@tcswap/helpers";
 import bs58check from "bs58check";
 import { match, P } from "ts-pattern";
-import { accumulative, compileMemo, getUtxoApi } from "../helpers";
+import { accumulative, compileMemo, getUtxoApi, insufficientBalanceError } from "../helpers";
 import type { TargetOutput, UTXOBuildTxParams, UTXOTransferParams, UTXOType } from "../types";
 import { createUTXOToolbox } from "./utxo";
 import { texToTransparentAddress, validateZcashAddress } from "./validators";
@@ -148,7 +148,7 @@ async function createTransaction(buildTxParams: UTXOBuildTxParams) {
   });
 
   if (!(inputs && outputs)) {
-    throw new USwapError("toolbox_utxo_insufficient_balance", { assetValue, sender });
+    throw insufficientBalanceError(utxos, assetValue, sender);
   }
 
   const psbt = bitgo.createPsbtForNetwork(

@@ -37,6 +37,7 @@ import {
   getUtxoApi,
   getUtxoNetwork,
   InputSizes,
+  insufficientBalanceError,
   TX_OVERHEAD,
   UTXOScriptType,
 } from "../helpers";
@@ -106,7 +107,7 @@ async function createTransaction({
   const { inputs, outputs } = accumulative({ ...inputsAndOutputs, chain, feeRate });
 
   // .inputs and .outputs will be undefined if no solution was found
-  if (!(inputs && outputs)) throw new USwapError("toolbox_utxo_insufficient_balance", { assetValue, sender });
+  if (!(inputs && outputs)) throw insufficientBalanceError(inputsAndOutputs.inputs, assetValue, sender);
   const getNetwork = await getUtxoNetwork();
   const psbt = new Psbt({ network: getNetwork(chain) });
 
