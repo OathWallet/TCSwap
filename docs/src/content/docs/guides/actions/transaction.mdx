@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Executing Transactions
 description: How to execute blockchain transactions with TCSwap
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 TCSwap provides a unified interface for creating and executing transactions across multiple blockchain networks. This guide explains how to perform transactions with the TCSwap library.
 
@@ -33,6 +34,7 @@ import {
   Chain,
   FeeOption,
   USwap,
+  getExplorerTxUrl,
   keystoreWallet,
 } from "@tcswap/sdk";
 
@@ -42,11 +44,7 @@ const uSwap = USwap({
 
 await uSwap.connectKeystore([Chain.Ethereum], "your secret phrase here");
 
-const amount = AssetValue.from({
-  chain: Chain.Ethereum,
-  symbol: "ETH",
-  value: "0.01",
-});
+const amount = AssetValue.from({ chain: Chain.Ethereum, value: "0.01" });
 
 async function transferAsset() {
   try {
@@ -57,7 +55,7 @@ async function transferAsset() {
       feeOptionKey: FeeOption.Fast,
     });
 
-    const txUrl = uSwap.getExplorerTxUrl({
+    const txUrl = getExplorerTxUrl({
       chain: Chain.Ethereum,
       txHash,
     });
@@ -78,11 +76,7 @@ const uSwap = createUSwap();
 
 await uSwap.connectKeystore([Chain.Ethereum], "your secret phrase here");
 
-const amount = AssetValue.from({
-  chain: Chain.Ethereum,
-  symbol: "ETH",
-  value: "0.01",
-});
+const amount = AssetValue.from({ chain: Chain.Ethereum, value: "0.01" });
 
 async function transferAsset() {
   try {
@@ -113,12 +107,10 @@ const uSwap = USwap({
 await uSwap.connectEVMWallet([Chain.Ethereum]);
 
 async function transferERC20() {
-  const usdcAmount = AssetValue.from({
-    chain: Chain.Ethereum,
-    symbol: "USDC",
-    ticker: "USDC",
-    address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  const usdcAmount = await AssetValue.from({
+    asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     value: "10",
+    asyncTokenLookup: true,
   });
 
   const txHash = await uSwap.transfer({
@@ -149,11 +141,7 @@ const uSwap = USwap({
 await uSwap.connectKeystore([Chain.Bitcoin], "your secret phrase here");
 
 async function transferBitcoin() {
-  const btcAmount = AssetValue.from({
-    chain: Chain.Bitcoin,
-    symbol: "BTC",
-    value: "0.001",
-  });
+  const btcAmount = AssetValue.from({ chain: Chain.Bitcoin, value: "0.001" });
 
   const txHash = await uSwap.transfer({
     assetValue: btcAmount,
@@ -184,11 +172,7 @@ const uSwap = USwap({
 await uSwap.connectKeplr([Chain.Cosmos]);
 
 async function transferCosmos() {
-  const atomAmount = AssetValue.from({
-    chain: Chain.Cosmos,
-    symbol: "ATOM",
-    value: "0.1",
-  });
+  const atomAmount = AssetValue.from({ chain: Chain.Cosmos, value: "0.1" });
 
   const txHash = await uSwap.transfer({
     assetValue: atomAmount,
@@ -209,25 +193,17 @@ For lower-level control, you can use the toolboxes directly instead of TCSwap's 
 
 ```ts twoslash
 import { AssetValue, Chain, FeeOption, getEvmToolbox } from "@tcswap/sdk";
-import { getProvider } from "@tcswap/helpers";
-import { ethers } from "ethers";
 
 async function directEVMTransfer() {
-  const provider = await getProvider(Chain.Ethereum);
-  const signer = new ethers.Wallet("your-private-key-here", provider);
-
-  const ethToolbox = await getEvmToolbox(Chain.Ethereum, { signer });
-
-  const amount = AssetValue.from({
-    chain: Chain.Ethereum,
-    symbol: "ETH",
-    value: "0.01",
+  const ethToolbox = await getEvmToolbox(Chain.Ethereum, {
+    phrase: "your twelve word mnemonic phrase here",
   });
+
+  const amount = AssetValue.from({ chain: Chain.Ethereum, value: "0.01" });
 
   const txHash = await ethToolbox.transfer({
     assetValue: amount,
     recipient: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-    from: signer.address,
     feeOptionKey: FeeOption.Fast,
   });
 
@@ -241,41 +217,17 @@ async function directEVMTransfer() {
 import { AssetValue, Chain, FeeOption, getUtxoToolbox } from "@tcswap/sdk";
 
 async function directBitcoinTransfer() {
-  const btcToolbox = await getUtxoToolbox(Chain.Bitcoin);
-
-  const keys = await btcToolbox.createKeysForPath({
+  // The toolbox derives a signer from the phrase and signs inside transfer()
+  const btcToolbox = await getUtxoToolbox(Chain.Bitcoin, {
     phrase: "your twelve word mnemonic phrase here",
-    derivationPath: "m/84'/0'/0'/0/0",
   });
 
-  const fromAddress = btcToolbox.getAddressFromKeys(keys);
-
-  async function signTransaction({
-    builder,
-    utxos,
-  }: {
-    builder: any;
-    utxos: any[];
-  }) {
-    utxos.forEach((utxo, index) => {
-      builder.sign(index, keys);
-    });
-    return builder.build();
-  }
-
-  const amount = AssetValue.from({
-    chain: Chain.Bitcoin,
-    symbol: "BTC",
-    value: "0.001",
-  });
+  const amount = AssetValue.from({ chain: Chain.Bitcoin, value: "0.001" });
 
   const txHash = await btcToolbox.transfer({
     assetValue: amount,
     recipient: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
-    from: fromAddress,
     feeOptionKey: FeeOption.Fast,
-
-    signTransaction,
   });
 
   return txHash;
@@ -287,15 +239,16 @@ async function directBitcoinTransfer() {
 For EVM chains, you can interact with smart contracts using the EVM toolbox:
 
 ```ts twoslash
-import { Chain, getEvmToolbox, erc20ABI } from "@tcswap/sdk";
-import { getProvider } from "@tcswap/helpers";
-import { ethers } from "ethers";
+import { Chain, getEvmToolbox } from "@tcswap/sdk";
+import { erc20ABI } from "@tcswap/helpers/contracts";
+import { formatUnits } from "ethers";
 
 async function interactWithContract() {
-  const provider = await getProvider(Chain.Ethereum);
-  const signer = new ethers.Wallet("your-private-key-here", provider);
+  const ethToolbox = await getEvmToolbox(Chain.Ethereum, {
+    phrase: "your twelve word mnemonic phrase here",
+  });
 
-  const ethToolbox = await getEvmToolbox(Chain.Ethereum, { signer });
+  const address = await ethToolbox.getAddress();
 
   const contractAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
@@ -321,10 +274,10 @@ async function interactWithContract() {
     contractAddress,
     abi: erc20ABI,
     funcName: "balanceOf",
-    funcParams: [signer.address],
+    funcParams: [address],
   });
 
-  const formattedBalance = ethers.formatUnits(balance, tokenDecimals);
+  const formattedBalance = formatUnits(balance, tokenDecimals);
 
   return {
     name: tokenName,

@@ -1,0 +1,53 @@
+---
+title: Passkeys Wallet Integration
+description: Connect Exodus's Passkeys wallet (@passkeys/core) to TCSwap for EVM chains, Bitcoin and Solana
+---
+
+The Passkeys wallet (Exodus's passkey-based wallet, `@passkeys/core`) is supported through `passkeysWallet`, which adds the `connectPasskeys` method to your TCSwap client (`WalletOption.PASSKEYS`). It is a different integration from the Exodus browser extension (`exodusWallet`).
+
+## Supported Chains
+
+`connectPasskeys` accepts the following chains (`PASSKEYS_SUPPORTED_CHAINS`):
+
+- **EVM**: every chain in `EVMChains`
+- **Bitcoin**
+- **Solana**
+
+## Installation and Import
+
+```bash
+bun add @tcswap/sdk
+```
+
+```ts twoslash
+import { Chain, USwap, passkeysWallet } from "@tcswap/sdk";
+```
+
+## Connecting
+
+`connectPasskeys(chains, wallet?)` creates a Passkeys wallet with `createWallet` from `@passkeys/core` (Bitcoin, Ethereum and Solana providers enabled), using `apiKeys.passkeys` as the `appId` when it is set. You can pass your own `@passkeys/core` `Wallet` instance as the second argument instead.
+
+```ts twoslash
+import { Chain, USwap, passkeysWallet } from "@tcswap/sdk";
+
+const uSwap = USwap({
+  config: {
+    apiKeys: {
+      uSwap: "your-api-key",
+      passkeys: "your-passkeys-app-id",
+    },
+  },
+  wallets: { ...passkeysWallet },
+});
+
+await uSwap.connectPasskeys([Chain.Ethereum, Chain.Bitcoin, Chain.Solana]);
+
+const solAddress = uSwap.getAddress(Chain.Solana);
+```
+
+## Notes
+
+- Connecting an EVM chain other than Ethereum asks the wallet to switch to (or add) that network; a failure throws `wallet_passkeys_failed_to_switch_network`. Later EVM calls switch the network on demand.
+- Bitcoin uses the wallet's Bitcoin provider through Sats Connect (payment address); cancelling throws `wallet_passkeys_request_canceled`.
+- If a provider is missing, connecting throws `wallet_passkeys_not_found`. Unlike most wallets, a chain that fails makes the whole `connectPasskeys` call reject.
+- All connected chains share the Passkeys wallet's `disconnect`.

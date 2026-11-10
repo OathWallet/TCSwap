@@ -13,15 +13,15 @@ import { Card, CardContent } from "@/components/ui/card";
 function Content() {
   const { connect, getClient } = useUSwap<["chainflip", "evm"]>();
 
-  const connectSwapKit = useCallback(async () => {
+  const connectUSwap = useCallback(async () => {
     const skClient = await connect({ chains: [Chain.Cosmos, Chain.Ethereum], walletOption: WalletOption.CTRL });
 
     console.info(skClient.getAllWallets());
   }, [connect]);
 
   useEffect(() => {
-    connectSwapKit();
-  }, [connectSwapKit]);
+    connectUSwap();
+  }, [connectUSwap]);
 
   const runTx = useCallback(() => {
     const client = getClient();

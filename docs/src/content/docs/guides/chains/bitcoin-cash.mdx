@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Bitcoin Cash Integration
 description: Complete guide to integrating Bitcoin Cash with TCSwap SDK for UTXO operations and cross-chain swaps
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem, Code } from "@astrojs/starlight/components";
 
@@ -12,8 +13,8 @@ This guide covers Bitcoin Cash integration with TCSwap, including wallet connect
 
 Bitcoin Cash is a peer-to-peer electronic cash system that focuses on fast, low-cost transactions. TCSwap provides comprehensive Bitcoin Cash support through:
 
-- **Bitcoin Cash Toolbox**: UTXO management with BCH-specific features
-- **CashAddr Support**: Modern Bitcoin Cash address format
+- **Bitcoin Cash Toolbox**: UTXO management with BCH-specific transaction building and signing
+- **CashAddr Support**: Modern Bitcoin Cash address format, plus conversion to and from legacy addresses
 - **Cross-Chain Swaps**: Seamless swaps with other cryptocurrencies via THORChain
 - **Low Transaction Fees**: Optimized for micro-transactions and payments
 - **Multi-Wallet Support**: Compatible with hardware and software wallets
@@ -40,29 +41,33 @@ import { createUSwap, Chain } from '@tcswap/sdk';
 
 const uSwap = createUSwap();
 
-const bchWallet = await uSwap.getWallet(Chain.BitcoinCash);
+await uSwap.connectKeystore([Chain.BitcoinCash], "your twelve word mnemonic phrase here");
 
-````
+const bchWallet = uSwap.getWalletByChain(Chain.BitcoinCash);
+```
 </TabItem>
 <TabItem label="Standalone Toolbox">
 ```typescript
 // @noErrorValidation
-import { getBitcoinCashToolbox } from '@tcswap/toolboxes/utxo';
+import { Chain } from '@tcswap/helpers';
+import { createBCHToolbox, getUtxoToolbox } from '@tcswap/toolboxes/utxo';
 
-
-const bchToolbox = await getBitcoinCashToolbox({
+const bchToolbox = await getUtxoToolbox(Chain.BitcoinCash, {
   phrase: "your twelve word mnemonic phrase here",
-
-  derivationPath: [44, 145, 0, 0, 0]
+  // Optional, defaults to [44, 145, 0, 0, 0]
+  derivationPath: [44, 145, 0, 0, 0],
 });
 
+// Equivalent, using the BCH toolbox factory directly
+const bchToolbox2 = await createBCHToolbox({
+  phrase: "your twelve word mnemonic phrase here",
+});
 
-const bchToolbox = await getBitcoinCashToolbox({
+// Or with a custom signer ({ getAddress, signTransaction({ builder, utxos }) })
+const bchSignerToolbox = await createBCHToolbox({
   signer: customBitcoinCashSigner,
-  network: "mainnet"
 });
-````
-
+```
 </TabItem>
 </Tabs>
 
@@ -80,31 +85,33 @@ await uSwap.connectKeystore([Chain.BitcoinCash], "your mnemonic phrase");
 
 await uSwap.connectLedger([Chain.BitcoinCash]);
 
-await uSwap.connectTrezor([Chain.BitcoinCash]);
+await uSwap.connectTrezor([Chain.BitcoinCash], [44, 145, 0, 0, 0]);
 ```
 
 ### Address Formats
 
-Bitcoin Cash supports multiple address formats:
+The toolbox returns CashAddr addresses without the `bitcoincash:` prefix. Use the exported helpers to convert between formats:
 
 ```typescript
 // @noErrorValidation
+import {
+  stripPrefix,
+  stripToCashAddress,
+  toCashAddress,
+  toLegacyAddress,
+} from "@tcswap/toolboxes/utxo";
 
-const addresses = {
-  cashaddr: uSwap.getAddress(Chain.BitcoinCash),
-
-  legacy: await bchToolbox.getAddress(0, false, "legacy"),
-
-  bitpay: await bchToolbox.getAddress(0, false, "bitpay"),
-};
-
-console.log("Bitcoin Cash addresses:", addresses);
-
-import { convertBCHAddress } from "@tcswap/toolboxes/utxo";
+const address = await bchToolbox.getAddress();
+// e.g. "qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy"
 
 const cashAddr = "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy";
-const legacy = convertBCHAddress(cashAddr, "legacy");
+
+const legacy = toLegacyAddress(cashAddr);
 console.log("Legacy format:", legacy);
+
+const withPrefix = toCashAddress(legacy); // "bitcoincash:q..."
+const withoutPrefix = stripToCashAddress(legacy); // "q..."
+const stripped = stripPrefix(cashAddr); // "q..."
 ```
 
 ### Bitcoin Cash Transfers
@@ -140,10 +147,6 @@ const batchPayments = async () => {
       address: "bitcoincash:qzgpa8j0krfnh9t6qefqp6nq8zqz5zh8tqp7qvqv77",
       amount: "0.002",
     },
-    {
-      address: "bitcoincash:qrmm7edwuj4jf7tn6rqrgf5qdt8hn4qh4qz7wl4wdt",
-      amount: "0.0015",
-    },
   ];
 
   for (const { address, amount } of recipients) {
@@ -159,37 +162,30 @@ const batchPayments = async () => {
 
 ### UTXO Management
 
-Bitcoin Cash uses the same UTXO model as Bitcoin:
+UTXO selection happens automatically in `transfer()`. To build a transaction yourself, `buildTx()` returns an unsigned PSBT with the selected inputs:
 
 ```typescript
 // @noErrorValidation
+import { getUtxoApi, stripToCashAddress } from "@tcswap/toolboxes/utxo";
 
-const utxos = await bchToolbox.getUTXOs(
-  "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy"
-);
+const sender = await bchToolbox.getAddress();
 
-console.log("Available UTXOs:");
-utxos.forEach((utxo, index) => {
-  console.log(
-    `UTXO ${index}: ${utxo.value} sats (${utxo.txHash}:${utxo.index})`
-  );
+const utxos = await getUtxoApi(Chain.BitcoinCash).getUtxos({
+  address: stripToCashAddress(sender),
 });
 
-const txParams = await bchToolbox.buildTransaction({
+utxos.forEach((utxo, index) => {
+  console.log(`UTXO ${index}: ${utxo.value} sats (${utxo.hash}:${utxo.index})`);
+});
+
+const { psbt, inputs } = await bchToolbox.buildTx({
+  sender,
   recipient: "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy",
   assetValue: AssetValue.from({ chain: Chain.BitcoinCash, value: "0.005" }),
   feeRate: 2,
-  utxos: utxos.slice(0, 3),
 });
 
-console.log(`Transaction size: ${txParams.size} bytes`);
-console.log(
-  `Transaction fee: ${txParams.fee} sats (~$${(
-    txParams.fee *
-    0.0000001 *
-    120
-  ).toFixed(4)})`
-);
+console.log(`Selected ${inputs.length} inputs`);
 ```
 
 ### Fee Management
@@ -201,66 +197,36 @@ Bitcoin Cash has consistently low fees:
 
 const feeRates = await bchToolbox.getFeeRates();
 console.log({
-  slow: feeRates.average,
-  standard: feeRates.fast,
-  fast: feeRates.fastest,
+  average: feeRates[FeeOption.Average],
+  fast: feeRates[FeeOption.Fast],
+  fastest: feeRates[FeeOption.Fastest],
 });
 
-const estimateFees = async () => {
-  const amounts = ["0.001", "0.01", "0.1", "1.0"];
+const sender = await bchToolbox.getAddress();
 
-  for (const amount of amounts) {
-    const fee = await bchToolbox.estimateTransactionFee({
-      recipient: "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy",
-      assetValue: AssetValue.from({ chain: Chain.BitcoinCash, value: amount }),
-      feeOptionKey: FeeOption.Fast,
-    });
+const fee = await bchToolbox.estimateTransactionFee({
+  sender,
+  recipient: "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy",
+  assetValue: AssetValue.from({ chain: Chain.BitcoinCash, value: "0.1" }),
+  feeOptionKey: FeeOption.Fast,
+});
 
-    const feeUsd = fee.toNumber() * 0.0000001 * 120;
-    console.log(
-      `${amount} BCH -> Fee: ${fee.toNumber()} sats (~$${feeUsd.toFixed(4)})`
-    );
-  }
-};
+console.log(`Estimated fee: ${fee.getValue("string")} BCH`);
 ```
 
-### Transaction History
+### Balances
+
+`getBalance` accepts CashAddr (with or without prefix) or legacy addresses:
 
 ```typescript
 // @noErrorValidation
 
-const transactions = await bchToolbox.getTransactionHistory(
-  "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy",
-  0,
-  20
+const balances = await bchToolbox.getBalance(
+  "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy"
 );
+const bchBalance = balances.find((asset) => asset.isGasAsset);
 
-console.log("Recent BCH transactions:");
-transactions.forEach((tx) => {
-  console.log(`${tx.hash}: ${tx.amount} BCH (${tx.type})`);
-  console.log(`  Block: ${tx.blockHeight}, Fee: ${tx.fee} sats`);
-  console.log(`  Date: ${new Date(tx.date)}`);
-});
-
-const analyzeTxHistory = (transactions: any[]) => {
-  const totalVolume = transactions.reduce(
-    (sum, tx) => sum + Math.abs(tx.amount),
-    0
-  );
-  const totalFees = transactions.reduce((sum, tx) => sum + (tx.fee || 0), 0);
-  const avgFee = totalFees / transactions.length;
-
-  console.log("Transaction Analysis:");
-  console.log(`- Total Volume: ${totalVolume.toFixed(4)} BCH`);
-  console.log(`- Total Fees: ${totalFees} sats`);
-  console.log(`- Average Fee: ${avgFee.toFixed(2)} sats per tx`);
-  console.log(
-    `- Fee as % of volume: ${(
-      ((totalFees * 0.00000001) / totalVolume) *
-      100
-    ).toFixed(4)}%`
-  );
-};
+console.log(`Balance: ${bchBalance?.getValue("string")} BCH`);
 ```
 
 ## Cross-Chain Swaps
@@ -269,171 +235,57 @@ Bitcoin Cash is supported in THORChain cross-chain swaps:
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const bchToBtcQuote = await uSwap.getQuote({
+const { routes } = await USwapApi.getSwapQuote({
   sellAsset: "BCH.BCH",
   sellAmount: "1",
   buyAsset: "BTC.BTC",
-  senderAddress: uSwap.getAddress(Chain.BitcoinCash),
-  recipientAddress: uSwap.getAddress(Chain.Bitcoin),
+  sourceAddress: uSwap.getAddress(Chain.BitcoinCash),
+  destinationAddress: uSwap.getAddress(Chain.Bitcoin),
 });
 
+const [bestRoute] = routes;
+
 console.log("BCH -> BTC quote:", {
-  expectedOutput: bchToBtcQuote.expectedOutput,
-  fees: bchToBtcQuote.fees,
-  priceImpact: bchToBtcQuote.priceImpact,
+  expectedOutput: bestRoute.expectedBuyAmount,
+  fees: bestRoute.fees,
+  estimatedTime: bestRoute.estimatedTime,
 });
 
 const swapTx = await uSwap.swap({
-  route: bchToBtcQuote.routes[0],
+  route: bestRoute,
   feeOptionKey: FeeOption.Fast,
 });
 
-const bchToUsdtQuote = await uSwap.getQuote({
+const bchToUsdtQuote = await USwapApi.getSwapQuote({
   sellAsset: "BCH.BCH",
   sellAmount: "0.5",
   buyAsset: "ETH.USDT-0xdAC17F958D2ee523a2206206994597C13D831ec7",
-  senderAddress: uSwap.getAddress(Chain.BitcoinCash),
-  recipientAddress: uSwap.getAddress(Chain.Ethereum),
+  sourceAddress: uSwap.getAddress(Chain.BitcoinCash),
+  destinationAddress: uSwap.getAddress(Chain.Ethereum),
 });
 
-const bchToRuneQuote = await uSwap.getQuote({
+const bchToRuneQuote = await USwapApi.getSwapQuote({
   sellAsset: "BCH.BCH",
   sellAmount: "0.1",
   buyAsset: "THOR.RUNE",
-  senderAddress: uSwap.getAddress(Chain.BitcoinCash),
-  recipientAddress: uSwap.getAddress(Chain.THORChain),
+  sourceAddress: uSwap.getAddress(Chain.BitcoinCash),
+  destinationAddress: uSwap.getAddress(Chain.THORChain),
 });
-```
-
-## Bitcoin Cash Specific Features
-
-### CashAddr Operations
-
-```typescript
-// @noErrorValidation
-import {
-  convertBCHAddress,
-  validateCashAddr,
-  decodeCashAddr,
-} from "@tcswap/toolboxes/utxo";
-
-const cashAddr = "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy";
-const legacy = "1KXrWXciRDrSAvuajXN8u4vBKbLQ9xhNSa";
-
-const formats = {
-  legacy: convertBCHAddress(cashAddr, "legacy"),
-  bitpay: convertBCHAddress(cashAddr, "bitpay"),
-  cashaddr: convertBCHAddress(legacy, "cashaddr"),
-};
-
-console.log("Address formats:", formats);
-
-const isValidCashAddr = validateCashAddr(cashAddr);
-console.log(`${cashAddr} is valid: ${isValidCashAddr}`);
-
-const decoded = decodeCashAddr(cashAddr);
-console.log("Decoded CashAddr:", {
-  prefix: decoded.prefix,
-  type: decoded.type,
-  hash: decoded.hash,
-});
-```
-
-### Payment Protocol Support
-
-```typescript
-// @noErrorValidation
-
-const createPaymentRequest = async (amount: string, memo?: string) => {
-  const paymentRequest = {
-    network: "bitcoincash",
-    currency: "BCH",
-    requiredFeeRate: 1,
-    outputs: [
-      {
-        address: uSwap.getAddress(Chain.BitcoinCash),
-        amount: parseFloat(amount) * 100000000,
-        message: memo,
-      },
-    ],
-    time: Date.now(),
-    expires: Date.now() + 900000,
-  };
-
-  return paymentRequest;
-};
-
-const paymentReq = await createPaymentRequest("0.001", "Coffee payment");
-console.log("Payment request:", paymentReq);
-```
-
-### SLP Token Support (Future)
-
-```typescript
-// @noErrorValidation
-
-const slpTokenTransfer = async () => {
-  const slpTx = await bchToolbox.buildTransaction({
-    recipient: "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy",
-    assetValue: AssetValue.from({
-      chain: Chain.BitcoinCash,
-      value: "0.000546",
-    }),
-    feeRate: 1,
-
-    opReturn: "SLP_TOKEN_TRANSFER_DATA",
-  });
-
-  return slpTx;
-};
 ```
 
 ## Network Configuration
 
-### Custom Node Setup
+### UTXO Data Provider
+
+Bitcoin Cash balances, UTXOs and fee rates come from Blockchair. Set an API key to avoid rate limits; `blockchairApiUrl` in `envs` can point the requests at your own proxy:
 
 ```typescript
 // @noErrorValidation
-import { USwapConfig } from '@tcswap/sdk';
+import { USwapConfig } from "@tcswap/sdk";
 
-
-USwapConfig.setRpcUrl(Chain.BitcoinCash, [
-  "https:
-  "https:
-  "https:
-]);
-
-
-const customBchRpc = "https:
-USwapConfig.setRpcUrl(Chain.BitcoinCash, customBchRpc);
-
-
-const bchToolbox = await getBitcoinCashToolbox({
-  phrase: "your mnemonic",
-  network: "mainnet",
-  apiUrl: "https:
-});
-```
-
-### Working with BCH Testnet
-
-```typescript
-// @noErrorValidation
-
-USwapConfig.setRpcUrl(Chain.BitcoinCash, "https:
-USwapConfig.setEnv('isMainnet', false);
-
-
-const testnetToolbox = await getBitcoinCashToolbox({
-  phrase: "your mnemonic",
-  network: "testnet",
-  derivationPath: [44, 1, 0, 0, 0]
-});
-
-
-const testnetAddress = testnetToolbox.getAddress();
-console.log("BCH Testnet address:", testnetAddress);
+USwapConfig.setApiKey("blockchair", "your-blockchair-api-key");
 ```
 
 ## Error Handling
@@ -450,84 +302,26 @@ try {
   });
 } catch (error) {
   if (error instanceof USwapError) {
-    switch (error.code) {
-      case "toolbox_bch_insufficient_funds":
+    const errorKey = error.message.split(":")[0];
+
+    switch (errorKey) {
+      case "toolbox_utxo_insufficient_balance":
         console.error("Insufficient Bitcoin Cash balance");
         break;
-      case "toolbox_bch_invalid_cashaddr":
-        console.error("Invalid CashAddr format");
+      case "toolbox_utxo_invalid_address":
+        console.error("Invalid Bitcoin Cash address");
         break;
-      case "toolbox_bch_address_format_mismatch":
-        console.error("Address format not supported by recipient");
+      case "toolbox_utxo_no_signer":
+        console.error("No signer configured for this toolbox");
         break;
-      case "toolbox_bch_dust_limit":
-        console.error("Transaction output below dust limit (546 sats)");
-        break;
-      case "toolbox_bch_network_error":
-        console.error("Bitcoin Cash network error:", error.cause);
+      case "toolbox_utxo_api_error":
+        console.error("UTXO data provider error:", error.cause);
         break;
       default:
         console.error("Unknown Bitcoin Cash error:", error);
     }
   }
 }
-```
-
-## Performance Optimization
-
-### Fee Optimization
-
-```typescript
-// @noErrorValidation
-
-const optimizeForSpeed = async () => {
-  const feeRates = await bchToolbox.getFeeRates();
-
-  const recommendedFee = Math.max(feeRates.fast, 2);
-
-  return recommendedFee;
-};
-
-const optimizeForMicrotx = async (amount: string) => {
-  const amountSats = parseFloat(amount) * 100000000;
-
-  if (amountSats < 100000) {
-    return 1;
-  }
-
-  return 2;
-};
-```
-
-### UTXO Management
-
-```typescript
-// @noErrorValidation
-
-const manageUTXOs = async () => {
-  const address = uSwap.getAddress(Chain.BitcoinCash);
-  const utxos = await bchToolbox.getUTXOs(address);
-
-  const smallUTXOs = utxos.filter((utxo) => utxo.value < 10000);
-
-  if (smallUTXOs.length > 5) {
-    console.log(`Consolidating ${smallUTXOs.length} small UTXOs`);
-
-    const consolidationTx = await bchToolbox.transfer({
-      recipient: address,
-      assetValue: AssetValue.from({
-        chain: Chain.BitcoinCash,
-        value: (
-          smallUTXOs.reduce((sum, utxo) => sum + utxo.value, 0) / 100000000
-        ).toString(),
-      }),
-      feeRate: 1,
-      utxos: smallUTXOs,
-    });
-
-    console.log("Consolidation tx:", consolidationTx);
-  }
-};
 ```
 
 ## Best Practices
@@ -542,68 +336,41 @@ const manageUTXOs = async () => {
 2. **Leverage Low Fees**:
 
    ```typescript
-   const microPayments = async () => {
-     await bchToolbox.transfer({
-       recipient: "bitcoincash:qp...",
-       assetValue: AssetValue.from({
-         chain: Chain.BitcoinCash,
-         value: "0.0001",
-       }),
-       feeRate: 1,
-     });
-   };
+   await bchToolbox.transfer({
+     recipient: "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy",
+     assetValue: AssetValue.from({ chain: Chain.BitcoinCash, value: "0.0001" }),
+     feeOptionKey: FeeOption.Average,
+   });
    ```
 
-3. **Validate Address Formats**:
+3. **Validate Addresses**:
 
    ```typescript
-   import { validateCashAddr } from "@tcswap/toolboxes/utxo";
+   import { bchValidateAddress } from "@tcswap/toolboxes/utxo";
 
    const recipient = "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy";
-   if (!validateCashAddr(recipient)) {
-     throw new Error("Invalid Bitcoin Cash CashAddr format");
+   if (!bchValidateAddress(recipient)) {
+     throw new Error("Invalid Bitcoin Cash address");
    }
-   ```
-
-4. **Handle Fast Confirmations**:
-
-   ```typescript
-   const handleConfirmations = (feeRate: number) => {
-     if (feeRate >= 2) return "~10 minutes (next block)";
-     return "~20 minutes (1-2 blocks)";
-   };
-
-   console.log("Expected confirmation:", handleConfirmations(2));
    ```
 
 ## Address Validation
 
+`bchValidateAddress` accepts mainnet CashAddr (with or without the `bitcoincash:` prefix) and legacy addresses:
+
 ```typescript
 // @noErrorValidation
-import { validateCashAddr, convertBCHAddress } from "@tcswap/toolboxes/utxo";
-
-const validateBCHAddress = (address: string): boolean => {
-  if (validateCashAddr(address)) {
-    return true;
-  }
-
-  try {
-    const converted = convertBCHAddress(address, "cashaddr");
-    return validateCashAddr(converted);
-  } catch {
-    return false;
-  }
-};
+import { bchValidateAddress } from "@tcswap/toolboxes/utxo";
 
 const testAddresses = [
   "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy",
+  "qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy",
   "1KXrWXciRDrSAvuajXN8u4vBKbLQ9xhNSa",
-  "CHfKUMnrNy8bqM5L1b44WpN9VdB9zD3rUu",
   "invalid_address",
 ];
 
 testAddresses.forEach((address) => {
-  const isValid = validateBCHAddress(address);
+  const isValid = bchValidateAddress(address);
   console.log(`${address}: ${isValid ? "Valid" : "Invalid"}`);
 });
 ```
@@ -612,21 +379,12 @@ testAddresses.forEach((address) => {
 
 ### Common Issues
 
-1. **Address format confusion**:
-
-   ```typescript
-   const ensureCompatibility = (address: string, service: string) => {
-     if (service === "exchange" && !address.includes("bitcoincash:")) {
-       return convertBCHAddress(address, "legacy");
-     }
-     return address;
-   };
-   ```
+1. **Address format confusion**: some services only accept legacy addresses. Convert with `toLegacyAddress(address)`, or back with `toCashAddress(address)`.
 
 2. **Dust limit issues**:
 
    ```typescript
-   const dustLimit = 546;
+   const dustLimit = 550; // BCH dust threshold used by the UTXO toolbox
 
    const checkDustLimit = (amount: string) => {
      const sats = parseFloat(amount) * 100000000;
@@ -640,50 +398,28 @@ testAddresses.forEach((address) => {
    };
    ```
 
-3. **Network selection**:
-
-   ```typescript
-
-   const networkConfig = {
-     mainnet: {
-       prefix: "bitcoincash",
-       rpc: "https:
-     },
-     testnet: {
-       prefix: "bchtest",
-       rpc: "https:
-     }
-   };
-   ```
-
 ## API Reference Summary
 
 ### Core Methods
 
-- `getBalance()` - Get Bitcoin Cash balance in BCH
+- `getBalance(address)` - Get balances as `AssetValue[]`
 - `transfer()` - Send BCH with automatic UTXO selection
-- `buildTransaction()` - Construct transaction with custom parameters
-- `getUTXOs()` - Fetch unspent transaction outputs
-- `getTransactionHistory()` - Get transaction history
+- `buildTx()` - Build an unsigned PSBT with selected inputs
+- `createTransaction()` - Build a BCH `TransactionBuilder` with selected UTXOs
+- `broadcastTx(txHex)` - Broadcast a signed raw transaction
 
 ### Address Methods
 
-- `getAddress()` - Generate CashAddr format address
-- `convertBCHAddress()` - Convert between address formats
-- `validateCashAddr()` - Validate CashAddr format
-- `decodeCashAddr()` - Decode CashAddr components
+- `getAddress()` - CashAddr address (without prefix) of the configured signer
+- `validateAddress()` / `bchValidateAddress()` - Validate a BCH address
+- `toCashAddress()` / `toLegacyAddress()` - Convert between address formats
+- `stripPrefix()` / `stripToCashAddress()` - Normalize CashAddr strings
 
 ### Fee Management
 
-- `getFeeRates()` - Get current network fee rates (typically very low)
-- `estimateTransactionFee()` - Estimate fee for transaction
-- `estimateTransactionSize()` - Estimate transaction size in bytes
-
-### Transaction Methods
-
-- `getTransaction()` - Get transaction details by hash
-- `broadcastTransaction()` - Broadcast signed transaction
-- `signTransaction()` - Sign transaction with private key
+- `getFeeRates()` - Get current fee rates per `FeeOption` (typically very low)
+- `estimateTransactionFee()` - Estimate fee for a transaction
+- `estimateMaxSendableAmount()` - Balance minus estimated fee
 
 ## Next Steps
 

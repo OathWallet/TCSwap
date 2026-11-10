@@ -1,0 +1,109 @@
+---
+title: Cardano Integration
+description: Use the TCSwap Cardano toolbox for ADA balances, transfers and address validation
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+TCSwap supports Cardano (`Chain.Cardano`, `"ADA"`) through the Cardano toolbox, built on `@meshsdk/core`.
+
+## Overview
+
+- **Chain**: Cardano mainnet. The toolbox uses network ID `1` only.
+- **Native asset**: ADA, 6 decimals. Derivation path in the chain config is `[1852, 1815, 0, 0, 0]`.
+- **Native tokens**: returned by `getBalance` as `ADA.<unit>` assets.
+- **Wallets**: the keystore wallet (`connectKeystore`) supports Cardano.
+
+## Import
+
+```ts
+import { getCardanoAddressValidator, getCardanoToolbox } from "@tcswap/toolboxes/cardano";
+```
+
+`@tcswap/sdk` does not re-export the Cardano subpath. Through the SDK, use `getToolbox(Chain.Cardano, params)` or connect a wallet.
+
+## Creating the toolbox
+
+<Tabs>
+<TabItem label="With SDK">
+```ts
+import { Chain, createUSwap } from "@tcswap/sdk";
+
+const uSwap = createUSwap();
+await uSwap.connectKeystore([Chain.Cardano], "your twelve or twenty-four word phrase");
+
+const wallet = uSwap.getWalletByChain(Chain.Cardano);
+```
+</TabItem>
+<TabItem label="Standalone toolbox">
+```ts
+import { getCardanoToolbox } from "@tcswap/toolboxes/cardano";
+
+// From a mnemonic (creates a MeshWallet)
+const toolbox = await getCardanoToolbox({ phrase: "your mnemonic phrase" });
+
+// Or with an existing signer
+const toolboxWithSigner = await getCardanoToolbox({ signer: meshWallet });
+```
+</TabItem>
+</Tabs>
+
+`getCardanoToolbox` accepts `{ signer?: CardanoProvider | { address: string } }` or `{ phrase?: string; index?: number; derivationPath?: DerivationPathArray }`. With a phrase, the toolbox builds a `MeshWallet` from the words. `index` and `derivationPath` are accepted, but the current implementation does not pass them to `MeshWallet`.
+
+The toolbox returns `createTransaction`, `estimateTransactionFee`, `getAddress`, `getBalance`, `signTransaction`, `transfer` and `validateAddress`.
+
+## Common operations
+
+### Address and balance
+
+```ts
+const address = toolbox.getAddress(); // change address of the signer, or ""
+
+const balances = await toolbox.getBalance(); // or toolbox.getBalance("addr1...")
+```
+
+`getBalance` returns ADA plus every native token held. If the lookup fails it logs the error and returns a zero ADA balance. It throws `core_wallet_connection_not_found` when no address is given and the toolbox has no signer.
+
+### Transfer
+
+```ts
+import { AssetValue, Chain } from "@tcswap/helpers";
+
+const txHash = await toolbox.transfer({
+  assetValue: AssetValue.from({ chain: Chain.Cardano, value: "10" }),
+  memo: "optional memo",
+  recipient: "addr1...",
+});
+```
+
+`transfer` builds the transaction with `createTransaction`, signs it with `signTransaction`, submits it through Blockfrost and returns the transaction hash. A `memo` is written as transaction metadata under label `0`. For a native token, the asset symbol is used as the unit, and the symbol must contain a `-` separated policy part.
+
+To sign without submitting:
+
+```ts
+const { unsignedTx } = await toolbox.createTransaction({ assetValue, recipient: "addr1..." });
+const signedTx = await toolbox.signTransaction(unsignedTx);
+```
+
+Both `createTransaction` and `signTransaction` require a signer created from a phrase (one that has `getChangeAddress`).
+
+### Fee estimate
+
+```ts
+const fee = await toolbox.estimateTransactionFee(); // fixed 0.01 ADA
+```
+
+### Address validation
+
+```ts
+const validateAddress = await getCardanoAddressValidator();
+validateAddress("addr1..."); // true or false
+```
+
+The validator uses Mesh's `deserializeAddress`. The same check is available as `toolbox.validateAddress` and through `getAddressValidator()` from `@tcswap/toolboxes` with `{ address, chain: Chain.Cardano }`.
+
+## Notes
+
+- Balance lookups and submission go through a `BlockfrostProvider` created inside the toolbox with a built-in mainnet project key. There is no option to supply your own provider or key yet.
+- `estimateTransactionFee` does not query the network; it always returns 0.01 ADA.
+- There is no Cardano-specific swap plugin. Routes that settle by a plain deposit transfer (for example [Houdini](/guides/plugins/houdini)) call the toolbox's `transfer`.

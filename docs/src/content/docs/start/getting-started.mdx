@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Getting Started with TCSwap
 description: A comprehensive guide to building your first cross-chain DeFi application with TCSwap
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Card, CardGrid, Code, Tabs, TabItem } from "@astrojs/starlight/components";
 import InteractiveExample from "../../../components/InteractiveExample.astro";
@@ -63,8 +64,8 @@ const uSwap = createUSwap();
 >
   <PlaygroundLinks
     compact={true}
-    stackblitzUrl="https://stackblitz.com/github/uswap/uswap/tree/develop/playgrounds/nextjs"
-    codesandboxUrl="https://codesandbox.io/p/github/uswap/uswap/develop/playgrounds/nextjs"
+    stackblitzUrl="https://stackblitz.com/github/thorchain/TCSwap/tree/main/playgrounds/nextjs"
+    codesandboxUrl="https://codesandbox.io/p/github/thorchain/TCSwap/tree/main/playgrounds/nextjs"
   />
 </TryItYourself>
 
@@ -85,8 +86,8 @@ const uSwap = createUSwap({
       uSwap: "your-uswap-key",
     },
     rpcUrls: {
-      ETH: "https://eth-mainnet.g.alchemy.com/v2/your-key",
-      AVAX: "https://api.avax.network/ext/bc/C/rpc",
+      ETH: ["https://eth-mainnet.g.alchemy.com/v2/your-key"],
+      AVAX: ["https://api.avax.network/ext/bc/C/rpc"],
     },
   },
 });
@@ -166,8 +167,6 @@ await uSwap.connectEVMWallet([Chain.Ethereum], WalletOption.METAMASK);
 
 await uSwap.connectKeplr([Chain.Cosmos, Chain.THORChain]);
 
-await uSwap.connectCosmostation([Chain.Cosmos, Chain.THORChain]);
-
 const wallets = uSwap.getAllWallets();
 ```
 
@@ -203,7 +202,7 @@ const uSwap = createUSwap();
 
 const quoteParams = {
   sellAsset: "ETH.ETH",
-  sellAmount: "1000000000000000000",
+  sellAmount: "1",
   buyAsset: "BTC.BTC",
   sourceAddress: uSwap.getAddress(Chain.Ethereum),
   destinationAddress: uSwap.getAddress(Chain.Bitcoin),
@@ -214,7 +213,7 @@ const { routes } = await USwapApi.getSwapQuote(quoteParams);
 
 const bestRoute = routes[0];
 console.log(`Expected output: ${bestRoute.expectedBuyAmount}`);
-console.log(`Fees:`, bestRoute.fee);
+console.log(`Fees:`, bestRoute.fees);
 
 const txHash = await uSwap.swap({
   route: bestRoute,
@@ -227,7 +226,7 @@ console.log(`Swap transaction: ${txHash}`);
 <StepByStepGuide
   title="🚀 Your First Cross-Chain Swap"
   description="Follow this interactive tutorial to perform your first swap with TCSwap"
-  playgroundUrl="https://stackblitz.com/github/uswap/uswap/tree/develop/playgrounds/nextjs"
+  playgroundUrl="https://stackblitz.com/github/thorchain/TCSwap/tree/main/playgrounds/nextjs"
   steps={[
     {
       title: "Install and Initialize TCSwap",
@@ -242,7 +241,7 @@ console.log(`Swap transaction: ${txHash}`);
       action: "Install TCSwap and create your instance",
       result: "TCSwap is now initialized and ready to use",
       tips: [
-        "Get your API key from https://api.uSwap.dev for enhanced features",
+        "Get your API key from https://affiliate.thorchain.org for enhanced features",
         "The SDK works without API keys for basic functionality",
         "Consider using environment variables for API keys in production"
       ]
@@ -282,7 +281,7 @@ destinationAddress: uSwap.getAddress(Chain.Bitcoin),
 slippage: 1
 });
 
-const bestRoute = quoteResponse.data.routes[0];
+const bestRoute = quoteResponse.routes[0];
 console.log('Expected output:', bestRoute.expectedBuyAmount);`,
       action: "Fetch swap quotes from the API",
       result: "Received quotes with pricing and route information",
@@ -295,7 +294,7 @@ console.log('Expected output:', bestRoute.expectedBuyAmount);`,
     {
       title: "Execute the Swap",
       description: "Perform the cross-chain swap using the selected route",
-      code: `import { FeeOption } from '@tcswap/sdk';
+      code: `import { FeeOption, getExplorerTxUrl } from '@tcswap/sdk';
 
 const txHash = await uSwap.swap({
 route: bestRoute,
@@ -304,7 +303,7 @@ feeOptionKey: FeeOption.Fast
 
 console.log('Transaction hash:', txHash);
 
-const txUrl = uSwap.getExplorerTxUrl({
+const txUrl = getExplorerTxUrl({
 chain: Chain.Ethereum,
 txHash
 });`,
@@ -392,7 +391,7 @@ For low-level blockchain operations:
 import { getToolbox, Chain } from "@tcswap/sdk";
 
 const address = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-const btcToolbox = getToolbox(Chain.Bitcoin);
+const btcToolbox = await getToolbox(Chain.Bitcoin);
 
 const isValid = btcToolbox.validateAddress(address);
 
@@ -406,18 +405,21 @@ Create your own plugin to extend TCSwap:
 ```typescript
 // @noErrorValidation
 
-import { USwap } from "@tcswap/sdk";
+import { USwap, createPlugin } from "@tcswap/sdk";
 
-const MyCustomPlugin = {
-  myCustomMethod: async (params: any) => {
-    return { success: true };
-  },
+const MyCustomPlugin = createPlugin({
+  name: "myPlugin",
+  methods: ({ getWallet }) => ({
+    myCustomMethod: async (params: { customParam: string }) => {
+      return { success: true };
+    },
 
-  getCustomData: async () => {
-    console.log("Fetching custom data");
-    return { data: "custom-data" };
-  },
-};
+    getCustomData: async () => {
+      console.log("Fetching custom data");
+      return { data: "custom-data" };
+    },
+  }),
+});
 
 const uSwap = USwap({
   plugins: {
@@ -425,8 +427,8 @@ const uSwap = USwap({
   },
 });
 
-await uSwap.myCustomMethod({ customParam: "value" });
-await uSwap.getCustomData();
+await uSwap.myPlugin.myCustomMethod({ customParam: "value" });
+await uSwap.myPlugin.getCustomData();
 ```
 
 ## Error Handling
@@ -555,16 +557,9 @@ Now that you understand the basics, here's your recommended learning path:
   </Card>
 </CardGrid>
 
-### 🆕 What's New in v4
-
-If you're upgrading from v3 or want to explore the latest features:
-
-- **[What's New in v4](/guides/whats-new-v4)** - Runtime configuration, improved architecture, and new features
-- **[Migration Guide](/others/migrate-to-v4)** - Complete upgrade guide from v3 to v4
-
 ## Need Help?
 
-- 🐛 [Report issues on GitHub](https://github.com/horizontalsystems/USwap/issues)
+- 🐛 [Report issues on GitHub](https://github.com/thorchain/TCSwap/issues)
 - 📚 [Browse the API Reference](/guides/api-reference) for detailed documentation
 
 ---

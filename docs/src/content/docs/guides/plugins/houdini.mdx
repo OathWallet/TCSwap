@@ -1,0 +1,88 @@
+---
+title: Houdini Plugin
+description: Execute Houdini Swap private routes with TCSwap by sending a plain transfer to the order's deposit address
+---
+
+The Houdini plugin executes quote routes whose provider is `ProviderName.HOUDINI`. A Houdini Swap private route runs as two centralized-exchange hops on Houdini's side, with no on-chain link between the deposit and the payout.
+
+The aggregator creates the order when it returns a non-dry quote. The route then carries the deposit address (`inboundAddress`) and the exact amount Houdini expects (`sellAmount`). The plugin's only job is to send that amount from the connected wallet. It approves nothing and calls no contract.
+
+## Import
+
+```ts
+import { HoudiniPlugin } from "@tcswap/plugins/houdini";
+```
+
+`HoudiniPlugin` is part of `defaultPlugins` in `@tcswap/sdk` and is re-exported from it, so `createUSwap()` includes it and `import { HoudiniPlugin } from "@tcswap/sdk"` also works. It is registered under the name `houdini` with `supportedUSwapProviders: [ProviderName.HOUDINI]`, and `loadPlugin("houdini")` from `@tcswap/plugins` can load it lazily.
+
+```ts
+import { USwap } from "@tcswap/core";
+import { HoudiniPlugin } from "@tcswap/plugins/houdini";
+import { keystoreWallet } from "@tcswap/wallets/keystore";
+
+const uSwap = USwap({
+  plugins: { ...HoudiniPlugin },
+  wallets: { ...keystoreWallet },
+});
+```
+
+## Swap example
+
+Request the quote with `dry: false` so the order is created and the route includes `inboundAddress` and `meta.houdini.houdiniId`:
+
+```ts
+import { Chain, createUSwap, ProviderName } from "@tcswap/sdk";
+import { USwapApi } from "@tcswap/helpers/api";
+
+const uSwap = createUSwap();
+await uSwap.connectKeystore([Chain.Ethereum, Chain.Bitcoin], "your secret phrase");
+
+const { routes } = await USwapApi.getSwapQuote({
+  buyAsset: "BTC.BTC",
+  destinationAddress: uSwap.getAddress(Chain.Bitcoin),
+  dry: false,
+  providers: [ProviderName.HOUDINI],
+  sellAmount: "0.5",
+  sellAsset: "ETH.ETH",
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+});
+
+const [route] = routes;
+if (!route) throw new Error("No Houdini route");
+
+const txHash = await uSwap.swap({ route });
+
+// Track the order with Houdini
+console.log(route.meta?.houdini?.houdiniId, route.meta?.houdini?.orderUrl);
+```
+
+## What `swap` does
+
+1. Checks that `route.inboundAddress` and `route.meta.houdini.houdiniId` are present, and throws `USwapError("core_swap_invalid_params")` otherwise.
+2. Builds the sell `AssetValue` from `sellAsset` and `sellAmount`, using an async token lookup.
+3. Refuses an XRP route that carries a memo (`core_swap_invalid_params` with `missing: ["destinationTag"]`). A deposit to a centralized venue is identified by a destination tag on XRP, and the toolbox only sends a free-text memo.
+4. Gets the wallet for the sell chain and throws `USwapError("core_wallet_connection_not_found")` if none is connected.
+5. Calls `wallet.transfer({ assetValue, recipient: inboundAddress, sender: wallet.address, memo })`, passing the memo only when the route has one, and returns the transaction hash.
+
+## Route metadata
+
+`route.meta.houdini` follows `HoudiniMetadataSchema` from `@tcswap/helpers/api`:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `quoteId` | `string` | Always present. |
+| `type` | `string` | Always present. |
+| `houdiniId` | `string?` | Exists only once the order does (non-dry quote). Required by `swap`. |
+| `orderUrl` | `string?` | Public order page. |
+| `depositTag` | `string?` | Deposit tag for chains that use one. |
+| `expires` | `number?` | Order expiry. |
+| `min`, `max` | `number?` | Amount limits. |
+| `amountInUsd`, `amountOutUsd` | `number?` | USD values. |
+| `markup` | `number?` | |
+| `swapName` | `string?` | |
+
+## Notes
+
+- The sell chain can be any chain whose wallet implements `transfer`. Radix is excluded.
+- Send exactly `route.sellAmount`. The order is created for that amount.
+- Houdini's routes are private, so the deposit transaction cannot be linked to the payout on-chain. Use `houdiniId` or `orderUrl` to follow progress.

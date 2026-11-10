@@ -1,20 +1,23 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Keplr Browser Extension Integration
 description: Complete guide to integrating Keplr wallet with TCSwap SDK v4 for Cosmos ecosystem support
 ---
 
-Keplr is the leading browser extension wallet for the Cosmos ecosystem, providing secure access to Cosmos-based networks. TCSwap SDK v4 offers comprehensive support for Keplr, enabling seamless integration with Cosmos, THORChain, and other IBC-enabled chains.
+{/* Modifications © 2025 Horizontal Systems. */}
+
+Keplr is the leading browser extension wallet for the Cosmos ecosystem, providing secure access to Cosmos-based networks. TCSwap supports Keplr through `keplrWallet`, which exposes the `connectKeplr` method for Cosmos Hub, THORChain, Kujira and Noble, as well as EVM chains and Bitcoin through Keplr's injected providers.
 
 ## Supported Chains
 
-TCSwap supports Keplr for these Cosmos ecosystem chains:
+`connectKeplr` accepts the following chains (`KEPLR_SUPPORTED_CHAINS`):
 
-- **Cosmos Hub (GAIA)**: The main Cosmos network
-- **THORChain**: Cross-chain liquidity protocol
-- **Kujira**: DeFi-focused Cosmos chain
-- **Noble**: USDC issuer for Cosmos
-- **Custom IBC Chains**: Any Cosmos SDK-based chain
+- **Cosmos ecosystem**: Cosmos Hub (`Chain.Cosmos`), THORChain (`Chain.THORChain`), Kujira (`Chain.Kujira`), Noble (`Chain.Noble`)
+- **EVM chains**: every chain in `EVMChains` (Ethereum, Arbitrum, Avalanche, Base, BNB Smart Chain, Optimism, Polygon, etc.) via Keplr's injected Ethereum provider (`window.keplr.ethereum`)
+- **Bitcoin** (`Chain.Bitcoin`) via Keplr's Bitcoin provider (`window.keplr.bitcoin`)
+
+Chains not in this list are ignored with a console warning. If none of the requested chains are supported, `connectKeplr` throws `wallet_chain_not_supported`. If the installed Keplr version does not expose the Ethereum or Bitcoin provider, connecting those chains throws `wallet_keplr_chain_not_supported`.
+
+The same `connectKeplr` method also connects **Leap** wallet when you pass `WalletOption.LEAP` as the second argument.
 
 ## Installation and Setup
 
@@ -22,8 +25,8 @@ TCSwap supports Keplr for these Cosmos ecosystem chains:
 
 Install Keplr from the official sources:
 
-- **Chrome/Chromium**: [Chrome Web Store](https:
-- **Firefox**: [Firefox Add-ons](https:
+- **Chrome/Chromium**: [Download](https://www.keplr.app/get)
+- **Firefox**: [Download](https://www.keplr.app/get)
 - **Brave**: Available through Chrome Web Store
 
 ### 2. Set Up Keplr Wallet
@@ -43,7 +46,7 @@ Keplr works in:
 - **Brave**: Full support
 - **Edge**: Full support
 
-## USwap Integration
+## TCSwap Integration
 
 ### Basic Setup
 
@@ -187,7 +190,7 @@ await uSwap.connectKeplr([Chain.Cosmos]);
 
 async function sendAtom() {
   const recipient = "cosmos1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("GAIA.ATOM", 1);
+  const amount = AssetValue.from({ asset: "GAIA.ATOM", value: 1 });
 
   try {
     console.log("Sending ATOM transaction...");
@@ -201,7 +204,7 @@ async function sendAtom() {
     });
 
     console.log("✅ Transaction sent:", txHash);
-    console.log("🔍 View on Mintscan:", `https:
+    console.log("🔍 View on Mintscan:", `https://www.mintscan.io/cosmos/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -226,7 +229,7 @@ await uSwap.connectKeplr([Chain.THORChain]);
 
 async function sendRune() {
   const recipient = "thor1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("THOR.RUNE", 10);
+  const amount = AssetValue.from({ asset: "THOR.RUNE", value: 10 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -236,7 +239,7 @@ async function sendRune() {
     });
 
     console.log("✅ RUNE transfer sent:", txHash);
-    console.log("🔍 View on THORChain Explorer:", `https:
+    console.log("🔍 View on THORChain Explorer:", `https://runescan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -247,7 +250,7 @@ async function sendRune() {
 
 
 async function depositToThorchain() {
-  const amount = AssetValue.fromChainOrSignature("THOR.RUNE", 100);
+  const amount = AssetValue.from({ asset: "THOR.RUNE", value: 100 });
   const memo = "ADD:BTC.BTC:bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
 
   try {
@@ -267,37 +270,6 @@ async function depositToThorchain() {
 }
 ```
 
-### IBC Transfers
-
-```ts twoslash
-import { USwap, keplrWallet, Chain, AssetValue } from "@tcswap/sdk";
-
-const uSwap = USwap({
-  wallets: { ...keplrWallet },
-});
-
-await uSwap.connectKeplr([Chain.Cosmos, Chain.Noble]);
-
-async function ibcTransfer() {
-  const amount = AssetValue.fromChainOrSignature("GAIA.ATOM", 1);
-  const recipient = "noble1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-
-  try {
-    const txHash = await uSwap.transfer({
-      assetValue: amount,
-      recipient,
-      memo: "IBC transfer to Noble",
-    });
-
-    console.log("✅ IBC transfer initiated:", txHash);
-    return txHash;
-  } catch (error) {
-    console.error("❌ IBC transfer failed:", error);
-    throw error;
-  }
-}
-```
-
 ### Noble USDC Operations
 
 ```ts twoslash
@@ -311,7 +283,7 @@ await uSwap.connectKeplr([Chain.Noble]);
 
 async function sendUSDCOnNoble() {
   const recipient = "noble1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("NOBLE.USDC", 100);
+  const amount = AssetValue.from({ asset: "NOBLE.USDC", value: 100 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -324,127 +296,6 @@ async function sendUSDCOnNoble() {
     return txHash;
   } catch (error) {
     console.error("❌ Noble USDC transfer failed:", error);
-    throw error;
-  }
-}
-```
-
-## Chain-Specific Setup
-
-### Adding Custom Cosmos Chains
-
-```ts twoslash
-
-import { USwap, keplrWallet, Chain } from "@tcswap/sdk";
-
-const uSwap = USwap({
-  wallets: { ...keplrWallet },
-});
-
-async function addCustomCosmosChain() {
-
-
-
-  try {
-
-
-    await uSwap.connectKeplr([Chain.Cosmos]);
-
-    console.log("✅ Custom chain added and connected");
-  } catch (error) {
-    if (error.message.includes("chain_not_supported")) {
-      console.log("🔧 Custom chain configuration needed");
-      console.log("USwap will prompt Keplr to add the chain");
-    }
-    throw error;
-  }
-}
-
-
-async function manuallyAddChain() {
-  if (window.keplr) {
-    try {
-
-      await window.keplr.experimentalSuggestChain({
-        chainId: "custom-chain-1",
-        chainName: "Custom Chain",
-        rpc: "https:
-        rest: "https:
-        bip44: {
-          coinType: 118,
-        },
-        bech32Config: {
-          bech32PrefixAccAddr: "custom",
-          bech32PrefixAccPub: "custompub",
-          bech32PrefixValAddr: "customvaloper",
-          bech32PrefixValPub: "customvaloperpub",
-          bech32PrefixConsAddr: "customvalcons",
-          bech32PrefixConsPub: "customvalconspub",
-        },
-        currencies: [
-          {
-            coinDenom: "CUSTOM",
-            coinMinimalDenom: "ucustom",
-            coinDecimals: 6,
-          },
-        ],
-        feeCurrencies: [
-          {
-            coinDenom: "CUSTOM",
-            coinMinimalDenom: "ucustom",
-            coinDecimals: 6,
-            gasPriceStep: {
-              low: 0.01,
-              average: 0.025,
-              high: 0.04,
-            },
-          },
-        ],
-        stakeCurrency: {
-          coinDenom: "CUSTOM",
-          coinMinimalDenom: "ucustom",
-          coinDecimals: 6,
-        },
-      });
-
-      console.log("✅ Custom chain added to Keplr");
-    } catch (error) {
-      console.error("❌ Failed to add custom chain:", error);
-    }
-  }
-}
-```
-
-### Gas and Fee Configuration
-
-```ts twoslash
-import { USwap, keplrWallet, Chain, AssetValue } from "@tcswap/sdk";
-
-const uSwap = USwap({
-  wallets: { ...keplrWallet },
-});
-
-await uSwap.connectKeplr([Chain.Cosmos]);
-
-async function transactionWithCustomGas() {
-  const amount = AssetValue.fromChainOrSignature("GAIA.ATOM", 1);
-  const recipient = "cosmos1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-
-  try {
-    const wallet = await uSwap.getWalletWithBalance(Chain.Cosmos);
-
-    const txHash = await uSwap.transfer({
-      assetValue: amount,
-      recipient,
-      memo: "Custom gas transaction",
-    });
-
-    return txHash;
-  } catch (error) {
-    if (error.message.includes("gas")) {
-      console.error("❌ Gas estimation failed");
-      console.log("🔧 Try adjusting gas settings in Keplr");
-    }
     throw error;
   }
 }
@@ -467,7 +318,7 @@ async function diagnosticConnection() {
 
     if (typeof window.keplr === 'undefined') {
       console.error("❌ Keplr extension not found");
-      console.log("🔧 Install Keplr extension from https:
+      console.log("🔧 Install Keplr extension from https://www.keplr.app/get");
       return { success: false, error: "Keplr not installed" };
     }
 
@@ -493,8 +344,8 @@ async function diagnosticConnection() {
     }
 
     if (error.message.includes("chain_not_supported")) {
-      console.log("🔧 Chain not supported or not added to Keplr");
-      console.log("Keplr will prompt to add the chain");
+      console.log("🔧 Chain not supported by connectKeplr or by the installed Keplr version");
+      console.log("Supported: Cosmos, THORChain, Kujira, Noble, EVM chains and Bitcoin");
     }
 
     return { success: false, error };
@@ -532,7 +383,7 @@ async function checkKeplrStatus() {
 ```ts twoslash
 async function handleTransactionErrors() {
   try {
-    const amount = AssetValue.fromChainOrSignature("GAIA.ATOM", 1);
+    const amount = AssetValue.from({ asset: "GAIA.ATOM", value: 1 });
     const txHash = await uSwap.transfer({
       assetValue: amount,
       recipient: "cosmos1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
@@ -573,30 +424,6 @@ async function handleTransactionErrors() {
 }
 ```
 
-### Chain Addition Issues
-
-```ts twoslash
-async function handleChainAdditionIssues() {
-  try {
-    await uSwap.connectKeplr([Chain.THORChain]);
-  } catch (error) {
-    if (error.message.includes("chain_not_supported")) {
-      console.log("🔧 Chain not in Keplr, attempting to add...");
-
-      try {
-        if (window.keplr) {
-          console.log("Keplr will prompt to add the chain");
-        }
-      } catch (addError) {
-        console.error("❌ Failed to add chain:", addError);
-        console.log("🔧 Please add the chain manually in Keplr settings");
-      }
-    }
-    throw error;
-  }
-}
-```
-
 ## Security Considerations
 
 ### Best Practices
@@ -621,7 +448,7 @@ async function verifyAddress() {
 }
 
 async function secureTransaction() {
-  const amount = AssetValue.fromChainOrSignature("GAIA.ATOM", 1);
+  const amount = AssetValue.from({ asset: "GAIA.ATOM", value: 1 });
   const recipient = "cosmos1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
   const memo = "Secure transaction";
 
@@ -665,8 +492,8 @@ const secureUSwap = USwap({
   config: {
     rpcUrls: {
 
-      [Chain.Cosmos]: "https:
-      [Chain.THORChain]: "https:
+      [Chain.Cosmos]: ["https://cosmos-rpc.publicnode.com"],
+      [Chain.THORChain]: ["https://gateway.liquify.com/chain/thorchain_rpc"],
     },
     apiKeys: {
       uSwap: process.env.USWAP_API_KEY,
@@ -766,7 +593,7 @@ export function KeplrWallet({ onConnect, onError }: KeplrWalletProps) {
         <h3>Keplr Wallet</h3>
         <p>Keplr extension not detected</p>
         <a
-          href="https:
+          href="https://www.keplr.app/get"
           target="_blank"
           rel="noopener noreferrer"
         >

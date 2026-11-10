@@ -1,0 +1,47 @@
+---
+title: OneKey Wallet Integration
+description: Connect the OneKey browser extension to TCSwap for EVM chains, Bitcoin and Solana
+---
+
+The OneKey browser extension is supported through `onekeyWallet`, which adds the `connectOnekeyWallet` method to your TCSwap client (`WalletOption.ONEKEY`).
+
+## Supported Chains
+
+`connectOnekeyWallet` accepts the following chains (`ONEKEY_WALLET_SUPPORTED_CHAINS`):
+
+- **EVM**: Arbitrum, Aurora, Avalanche, Base, BNB Smart Chain, Ethereum, Gnosis, Optimism, Polygon, X Layer
+- **Bitcoin**
+- **Solana**
+
+## Installation and Import
+
+```bash
+bun add @tcswap/sdk
+```
+
+```ts twoslash
+import { Chain, USwap, onekeyWallet } from "@tcswap/sdk";
+```
+
+## Connecting
+
+```ts twoslash
+import { Chain, USwap, onekeyWallet } from "@tcswap/sdk";
+
+const uSwap = USwap({
+  config: { apiKeys: { uSwap: "your-api-key" } },
+  wallets: { ...onekeyWallet },
+});
+
+await uSwap.connectOnekeyWallet([Chain.Ethereum, Chain.Bitcoin, Chain.Solana]);
+
+const address = uSwap.getAddress(Chain.Ethereum);
+```
+
+Note the method name: it is `connectOnekeyWallet`, not `connectOnekey`.
+
+## Notes
+
+- Providers come from `window.$onekey`: `ethereum` (EVM), `btc` (Bitcoin, through Sats Connect) and `sol` (Solana). Without `window.$onekey`, or without the provider for a requested chain, connecting throws `wallet_onekey_not_found`.
+- When connecting an EVM chain other than Ethereum, OneKey is asked to add that network (`wallet_addEthereumChain`); a failure throws `wallet_failed_to_add_or_switch_network`. Later EVM calls switch the network on demand.
+- Cancelling the Bitcoin address request throws `wallet_connection_rejected_by_user`.

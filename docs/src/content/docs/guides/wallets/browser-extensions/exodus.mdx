@@ -1,0 +1,47 @@
+---
+title: Exodus Wallet Integration
+description: Connect the Exodus browser extension to TCSwap for EVM chains, Bitcoin and Solana
+---
+
+The Exodus browser extension is supported through `exodusWallet`, which adds the `connectExodus` method to your TCSwap client (`WalletOption.EXODUS`). This is a different integration from Exodus's Passkeys wallet, which is covered on the Passkeys page.
+
+## Supported Chains
+
+`connectExodus` accepts the following chains (`EXODUS_SUPPORTED_CHAINS`):
+
+- **EVM**: Arbitrum, Avalanche, Base, BNB Smart Chain, Ethereum, Optimism, Polygon
+- **Bitcoin**
+- **Solana**
+
+## Installation and Import
+
+```bash
+bun add @tcswap/sdk
+```
+
+```ts twoslash
+import { Chain, USwap, exodusWallet } from "@tcswap/sdk";
+```
+
+## Connecting
+
+```ts twoslash
+import { Chain, USwap, exodusWallet } from "@tcswap/sdk";
+
+const uSwap = USwap({
+  config: { apiKeys: { uSwap: "your-api-key" } },
+  wallets: { ...exodusWallet },
+});
+
+await uSwap.connectExodus([Chain.Ethereum, Chain.Bitcoin, Chain.Solana]);
+
+const btcAddress = uSwap.getAddress(Chain.Bitcoin);
+```
+
+## Notes
+
+- Every provider must identify as Exodus (`isExodus`). EVM uses `window.exodus.ethereum`, else `window.ethereum` flagged `isExodus`, else the EIP-6963 provider announced as `com.exodus.web3-wallet`. Solana uses `window.exodus.solana` (or `window.solana`). Bitcoin uses `window.BitcoinProvider`, else the Sats Connect provider Exodus registers through the Wallet Standard.
+- Already-approved sites reconnect silently: EVM checks `eth_accounts` before `eth_requestAccounts`, and Solana tries `connect({ onlyIfTrusted: true })` first.
+- Chains connect independently: a chain that fails is logged and skipped; `connectExodus` throws only if every requested chain failed. EVM chains share one provider, so only the first one opens the approval prompt.
+- Errors you may see: `wallet_exodus_not_found`, `wallet_exodus_bitcoin_not_found`, `wallet_exodus_no_address`.
+- `loadWallet(WalletOption.EXODUS)` from `@tcswap/wallets` currently resolves to `passkeysWallet`, not `exodusWallet`. To use the Exodus extension, import `exodusWallet` directly as shown above.

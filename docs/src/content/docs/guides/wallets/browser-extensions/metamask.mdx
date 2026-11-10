@@ -1,30 +1,33 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: MetaMask Browser Extension Integration
 description: Complete guide to integrating MetaMask and EVM browser extensions with TCSwap SDK v4
 ---
 
-MetaMask is the most popular Ethereum browser extension wallet, providing secure access to Ethereum and EVM-compatible networks. TCSwap SDK v4 offers comprehensive support for MetaMask and other EVM browser extensions through a unified interface.
+{/* Modifications © 2025 Horizontal Systems. */}
+
+MetaMask is the most popular Ethereum browser extension wallet, providing secure access to Ethereum and EVM-compatible networks. TCSwap supports MetaMask and several other injected EVM wallets through `evmWallet`, which exposes a single `connectEVMWallet` method.
 
 ## Supported Extensions
 
-TCSwap's EVM extension integration supports:
+`connectEVMWallet(chains, type?, eip1193Provider?)` picks the injected provider from the `type` argument (`EVMWalletOptions`):
 
-- **MetaMask**: The most popular Ethereum wallet extension
-- **Brave Wallet**: Built into Brave browser
-- **Coinbase Wallet**: Browser extension version
-- **Trust Wallet**: Browser extension version
-- **OKX Wallet**: Browser extension version
-- **Any EIP-6963 compatible wallet**: Standard for wallet discovery
+| `WalletOption` | Provider used |
+| --- | --- |
+| `WalletOption.METAMASK` (default when `type` is omitted) | MetaMask's EIP-6963 provider (`io.metamask`), else `window.ethereum` unless it belongs to Brave, Rabby or Binance |
+| `WalletOption.RABBY` | Rabby's EIP-6963 provider (`io.rabby`), else `window.ethereum` if it is Rabby |
+| `WalletOption.COINBASE_WEB` | `window.coinbaseWalletExtension` |
+| `WalletOption.TRUSTWALLET_WEB` | `window.trustwallet` |
+| `WalletOption.BRAVE` | `window.ethereum` |
+| `WalletOption.OKX_MOBILE` | `window.ethereum` (OKX in-app browser) |
+| `WalletOption.EIP6963` | The `eip1193Provider` you pass as the third argument (required) |
+
+If `type` is omitted, `window.ethereum` is used whichever extension injected it, and the connection is recorded as `WalletOption.METAMASK`.
+
+Brave Wallet also has a dedicated `braveWallet` (`connectBrave`, EVM + Solana) and OKX Wallet a dedicated `okxWallet` (`connectOkx`); see their own pages.
 
 ## Supported Chains
 
-All EVM-compatible chains are supported:
-
-- **Layer 1**: Ethereum, BinanceSmartChain, Avalanche, Polygon
-- **Layer 2**: Arbitrum, Optimism, Base
-- **Side Chains**: Gnosis, Aurora
-- **Custom Networks**: Any EVM-compatible chain
+`connectEVMWallet` accepts any chain in `EVMChains`: Arbitrum, Aurora, Avalanche, Base, Berachain, BNB Smart Chain, Botanix, Core, Corn, Cronos, Ethereum, Gnosis, HyperEVM, Monad, Optimism, Polygon, Sonic, Unichain and X Layer. Chains outside this list are ignored (with a console warning). The same address is used on every EVM chain.
 
 ## Installation and Setup
 
@@ -32,10 +35,10 @@ All EVM-compatible chains are supported:
 
 Install your preferred EVM wallet extension:
 
-- **MetaMask**: [Chrome Web Store](https:
+- **MetaMask**: [Download](https://metamask.io/download/)
 - **Brave Wallet**: Built into Brave browser
-- **Coinbase Wallet**: [Chrome Web Store](https:
-- **Trust Wallet**: [Chrome Web Store](https:
+- **Coinbase Wallet**: [Download](https://www.coinbase.com/wallet/downloads)
+- **Trust Wallet**: [Download](https://trustwallet.com/download)
 
 ### 2. Set Up Wallet
 
@@ -305,7 +308,7 @@ await uSwap.connectEVMWallet([Chain.Ethereum], WalletOption.METAMASK);
 
 async function sendEther() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+  const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
 
   try {
     console.log("Sending ETH transaction...");
@@ -318,7 +321,7 @@ async function sendEther() {
     });
 
     console.log("✅ Transaction sent:", txHash);
-    console.log("🔍 View on Etherscan:", `https:
+    console.log("🔍 View on Etherscan:", `https://etherscan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -348,10 +351,10 @@ await uSwap.connectEVMWallet([Chain.Ethereum], WalletOption.METAMASK);
 async function sendERC20Token() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
 
-  const amount = AssetValue.fromChainOrSignature(
-    "ETH.USDC-0xA0B86A33E6441E89D5E4C4EDF4C8DF4C0E6C62F6",
-    100
-  );
+  const amount = AssetValue.from({
+    asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    value: 100,
+  });
 
   try {
     const txHash = await uSwap.transfer({
@@ -371,12 +374,13 @@ async function sendAnyERC20Token(
   tokenAddress: string,
   amount: number,
   recipient: string,
-  decimals: number = 18
 ) {
-  const tokenAsset = AssetValue.fromChainOrSignature(
-    `ETH.TOKEN-${tokenAddress}`,
-    amount
-  );
+  // "CHAIN:address" + asyncTokenLookup fetches the token's ticker and decimals
+  const tokenAsset = await AssetValue.from({
+    asset: `ETH:${tokenAddress}`,
+    value: amount,
+    asyncTokenLookup: true,
+  });
 
   try {
     const txHash = await uSwap.transfer({
@@ -408,7 +412,7 @@ await uSwap.connectEVMWallet([Chain.Ethereum, Chain.Polygon, Chain.Arbitrum], Wa
 
 async function sendOnPolygon() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("MATIC.MATIC", 1);
+  const amount = AssetValue.from({ asset: "POL.POL", value: 1 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -417,7 +421,7 @@ async function sendOnPolygon() {
     });
 
     console.log("✅ MATIC transfer sent:", txHash);
-    console.log("🔍 View on PolygonScan:", `https:
+    console.log("🔍 View on PolygonScan:", `https://polygonscan.com/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -428,7 +432,7 @@ async function sendOnPolygon() {
 
 async function sendOnArbitrum() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ARB.ETH", 0.001);
+  const amount = AssetValue.from({ asset: "ARB.ETH", value: 0.001 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -437,7 +441,7 @@ async function sendOnArbitrum() {
     });
 
     console.log("✅ Arbitrum ETH transfer sent:", txHash);
-    console.log("🔍 View on Arbiscan:", `https:
+    console.log("🔍 View on Arbiscan:", `https://arbiscan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -451,8 +455,10 @@ async function sendOnArbitrum() {
 
 ### Automatic Network Switching
 
+Connecting does not switch the wallet's network. Instead, the EVM wallet methods (`transfer`, `sendTransaction`, `approve`, `call`, fee estimation, etc.) switch the extension to the chain of the asset on demand with `wallet_switchEthereumChain`. If the switch fails, the SDK calls `wallet_addEthereumChain` with the chain's network parameters and retries.
+
 ```ts twoslash
-import { USwap, evmWallet, Chain, WalletOption } from "@tcswap/sdk";
+import { USwap, evmWallet, Chain, AssetValue, WalletOption } from "@tcswap/sdk";
 
 const uSwap = USwap({
   wallets: { ...evmWallet },
@@ -460,13 +466,12 @@ const uSwap = USwap({
 
 async function switchAndTransact() {
   try {
-    await uSwap.connectEVMWallet([Chain.Ethereum], WalletOption.METAMASK);
+    await uSwap.connectEVMWallet([Chain.Ethereum, Chain.Polygon], WalletOption.METAMASK);
 
-    await uSwap.connectEVMWallet([Chain.Polygon], WalletOption.METAMASK);
-
-    const amount = AssetValue.fromChainOrSignature("MATIC.MATIC", 1);
+    const amount = AssetValue.from({ asset: "POL.POL", value: 1 });
     const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
 
+    // MetaMask is asked to switch to Polygon before signing
     const txHash = await uSwap.transfer({
       assetValue: amount,
       recipient,
@@ -475,46 +480,11 @@ async function switchAndTransact() {
     console.log("Transaction on Polygon:", txHash);
     return txHash;
   } catch (error) {
-    if (error.message.includes("network")) {
+    if (error.message.includes("failed_to_switch_network")) {
       console.error("❌ Network switch failed");
       console.log("Please manually switch to Polygon network in MetaMask");
     }
     throw error;
-  }
-}
-```
-
-### Adding Custom Networks
-
-```ts twoslash
-
-
-
-
-async function addCustomNetwork() {
-  if (typeof window.ethereum !== 'undefined') {
-    try {
-
-      await window.ethereum.request({
-        method: 'wallet_addEthereumChain',
-        params: [
-          {
-            chainId: '0x89',
-            chainName: 'Polygon Mainnet',
-            nativeCurrency: {
-              name: 'MATIC',
-              symbol: 'MATIC',
-              decimals: 18,
-            },
-            rpcUrls: ['']
-          },
-        ],
-      });
-
-      console.log('✅ Network added successfully');
-    } catch (error) {
-      console.error('❌ Failed to add network:', error);
-    }
   }
 }
 ```
@@ -604,7 +574,7 @@ async function checkWalletStatus() {
 ```ts twoslash
 async function handleTransactionErrors() {
   try {
-    const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+    const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
     const txHash = await uSwap.transfer({
       assetValue: amount,
       recipient: "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC",
@@ -651,37 +621,17 @@ async function handleTransactionErrors() {
 ### Network Issues
 
 ```ts twoslash
-
 async function handleNetworkIssues() {
   try {
-    await uSwap.connectEVMWallet([Chain.Polygon], WalletOption.METAMASK);
+    await uSwap.transfer({
+      assetValue: AssetValue.from({ asset: "POL.POL", value: 1 }),
+      recipient: "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC",
+    });
   } catch (error) {
-    if (error.message.includes("failed_to_switch_network")) {
+    // Thrown when both wallet_switchEthereumChain and wallet_addEthereumChain fail
+    if (error.message.includes("helpers_failed_to_switch_network")) {
       console.error("❌ Failed to switch to Polygon network");
-
-
-      try {
-        await window.ethereum.request({
-          method: 'wallet_addEthereumChain',
-          params: [
-            {
-              chainId: '0x89',
-              chainName: 'Polygon Mainnet',
-              nativeCurrency: {
-                name: 'MATIC',
-                symbol: 'MATIC',
-                decimals: 18,
-              },
-              rpcUrls: ['https:'],
-            },
-          ],
-        });
-
-        console.log("✅ Network added, please try connecting again");
-      } catch (addError) {
-        console.error("❌ Failed to add network:", addError);
-        console.log("🔧 Please add Polygon network manually in MetaMask");
-      }
+      console.log("🔧 Please add or select the Polygon network manually in MetaMask");
     }
 
     throw error;
@@ -708,7 +658,7 @@ async function verifyConnection() {
 
 async function secureTransaction() {
   try {
-    const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+    const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
     const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
 
     console.log("📋 Transaction Details:");
@@ -737,7 +687,7 @@ async function safeTransfer(recipient: string, amount: number) {
     throw new Error("Invalid recipient address");
   }
 
-  const assetValue = AssetValue.fromChainOrSignature("ETH.ETH", amount);
+  const assetValue = AssetValue.from({ asset: "ETH.ETH", value: amount });
 
   if (amount <= 0) {
     throw new Error("Amount must be positive");
@@ -759,9 +709,9 @@ const secureUSwap = USwap({
   config: {
 
     rpcUrls: {
-      [Chain.Ethereum]: "https:
-      [Chain.Polygon]: "https:
-      [Chain.Arbitrum]: "https:
+      [Chain.Ethereum]: ["https://ethereum-rpc.publicnode.com"],
+      [Chain.Polygon]: ["https://polygon-rpc.com"],
+      [Chain.Arbitrum]: ["https://arb1.arbitrum.io/rpc"],
     },
 
     apiKeys: {
@@ -866,7 +816,7 @@ export function MetaMaskWallet({ onConnect, onError }: MetaMaskWalletProps) {
       <div>
         <p>MetaMask not installed</p>
         <a
-          href="https:
+          href="https://metamask.io/download/"
           target="_blank"
           rel="noopener noreferrer"
         >

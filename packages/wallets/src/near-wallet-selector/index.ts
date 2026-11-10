@@ -72,7 +72,7 @@ async function getWalletMethods(walletFactories?: WalletModuleFactory[]) {
 
   if (!isSignedIn) {
     // Only show modal if not already connected
-    const modal = setupModal(selector, { contractId, description: "Connect your NEAR wallet to SwapKit" });
+    const modal = setupModal(selector, { contractId, description: "Connect your NEAR wallet to TCSwap" });
 
     await waitForWalletSelection(selector, modal);
   }

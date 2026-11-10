@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Core Concepts
 description: Understanding TCSwap's fundamental building blocks - AssetValue, USwapNumber, and error handling
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Card, CardGrid, Code, Tabs, TabItem } from "@astrojs/starlight/components";
 
@@ -26,7 +27,7 @@ const oneEth = AssetValue.from({
 const oneEthInWei = AssetValue.from({
   asset: "ETH.ETH",
   value: "1000000000000000000",
-  fromBaseDecimal: true,
+  fromBaseDecimal: 18,
 });
 ```
 
@@ -92,7 +93,7 @@ const btcAmount = AssetValue.from({ asset: "BTC.BTC", value: 0.00123456 });
 
 btcAmount.toSignificant(4);
 
-btcAmount.toCurrency("USD", 45000);
+btcAmount.mul(45000).toCurrency("$");
 
 const largeAmount = AssetValue.from({ asset: "ETH.ETH", value: 1234567 });
 largeAmount.toAbbreviation();
@@ -114,9 +115,9 @@ const usdcAmount = AssetValue.from({
 });
 const synthEth = AssetValue.from({ asset: "ETH/ETH", value: 1 });
 
-ethAmount.isGasAsset();
-usdcAmount.isGasAsset();
-synthEth.isSynthetic();
+ethAmount.isGasAsset;
+usdcAmount.isGasAsset;
+synthEth.isSynthetic;
 ```
 
 ## USwapNumber
@@ -189,35 +190,35 @@ try {
   await uSwap.swap({ route });
 } catch (error) {
   if (error instanceof USwapError) {
+    // message is the error key, optionally followed by JSON-encoded info
     console.error("Error:", error.message);
-    console.error("Code:", error.code);
-    console.error("Details:", error.details);
+    // cause holds the original (source) error, if any
+    console.error("Cause:", error.cause);
   }
 }
 ```
 
-### Common Error Codes
+### Common Error Keys
 
-TCSwap uses standardized error codes:
+TCSwap uses standardized error keys (the full map with numeric codes is available as `USwapError.ErrorCode`):
 
 ```typescript
 // @noErrorValidation
 
-"wallet_not_found";
-"wallet_connection_failed";
-"wallet_insufficient_funds";
+"core_wallet_connection_not_found";
+"core_wallet_connection_failed";
+"wallet_connection_rejected_by_user";
 
-"transaction_failed";
-"transaction_rejected";
-"transaction_timeout";
+"core_transaction_failed";
+"core_transaction_user_rejected";
+"core_transaction_deposit_insufficient_funds_error";
 
-"api_request_failed";
-"api_rate_limit";
-"api_invalid_response";
+"api_v2_invalid_response";
+"api_v2_server_error";
 
-"invalid_address";
-"invalid_amount";
-"invalid_chain";
+"core_transaction_invalid_recipient_address";
+"helpers_invalid_asset_identifier";
+"helpers_chain_not_supported";
 ```
 
 ### Error Context
@@ -233,7 +234,8 @@ catch (error) {
 
 
 
-    console.log('Context:', error.info);
+    console.log('Context:', error.message);
+    console.log('Source error:', error.cause);
   }
 }
 ```
@@ -283,8 +285,8 @@ import { ProviderName } from "@tcswap/sdk";
 ProviderName.THORCHAIN;
 ProviderName.CHAINFLIP;
 ProviderName.ONEINCH;
-ProviderName.UNISWAP;
-ProviderName.SUSHISWAP;
+ProviderName.UNISWAP_V3;
+ProviderName.SUSHISWAP_V2;
 ProviderName.PANCAKESWAP;
 ```
 
@@ -297,8 +299,6 @@ ProviderName.PANCAKESWAP;
 
 const amount = AssetValue.from({ asset: "ETH.ETH", value: 1 });
 await uSwap.transfer({ assetValue: amount, recipient });
-
-await uSwap.transfer({ value: 1, recipient });
 ```
 
 ### 2. Handle Decimal Precision
@@ -341,7 +341,7 @@ const btcBalance = AssetValue.from({ asset: "BTC.BTC", value: 0.00123456 });
 
 const displayValue = btcBalance.toSignificant(6);
 
-const usdValue = btcBalance.toCurrency("USD", btcPrice);
+const usdValue = btcBalance.mul(btcPrice).toCurrency("$");
 ```
 
 ## Next Steps

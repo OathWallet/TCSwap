@@ -1017,7 +1017,7 @@
   - Improved error handling for provider access
   - Enhanced disconnect functionality using new `wallet.disconnect()` method when available
 
-  Note: This is not a breaking change for SwapKit users - the wallet connection API remains unchanged.
+  Note: This is not a breaking change for TCSwap users - the wallet connection API remains unchanged.
 
 ### Patch Changes
 
@@ -1252,7 +1252,7 @@
   - Improved error handling for provider access
   - Enhanced disconnect functionality using new `wallet.disconnect()` method when available
 
-  Note: This is not a breaking change for SwapKit users - the wallet connection API remains unchanged.
+  Note: This is not a breaking change for TCSwap users - the wallet connection API remains unchanged.
 
 ### Patch Changes
 

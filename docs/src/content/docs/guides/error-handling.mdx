@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Error Handling
 description: Comprehensive guide to handling errors in TCSwap applications
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
 
@@ -14,7 +15,7 @@ TCSwap provides a comprehensive error system with specific error codes for diffe
 
 ### USwapError Class
 
-The `USwapError` class extends the native `Error` class with additional context:
+The `USwapError` class extends the native `Error` class. Its `message` is the error key, optionally followed by `: <JSON info>`, and `cause` holds the underlying source error (if any). There are no separate `errorKey`/`code` properties on the instance; numeric codes are available via the static `USwapError.ErrorCode` map:
 
 ```typescript
 // @noErrorValidation
@@ -24,8 +25,10 @@ try {
   await uSwap.swap({ route });
 } catch (error) {
   if (error instanceof USwapError) {
-    console.log("Error code:", error.message.split(":")[0]);
-    console.log("Error details:", error.cause);
+    const errorKey = error.message.split(":")[0] as keyof typeof USwapError.ErrorCode;
+    console.log("Error key:", errorKey);
+    console.log("Error code:", USwapError.ErrorCode[errorKey]);
+    console.log("Error cause:", error.cause);
   }
 }
 ```
@@ -54,7 +57,7 @@ TCSwap errors are organized by category with specific numeric codes:
     const walletErrors = {
       wallet_connection_rejected_by_user: 20001,
       wallet_ledger_device_not_found: 20104,
-      wallet_metamask_not_found: 21803,
+      wallet_evm_extensions_not_found: 21803,
       wallet_keepkey_not_found: 20901,
     };
     ```
@@ -71,7 +74,7 @@ TCSwap errors are organized by category with specific numeric codes:
     ```
 
   </TabItem>
-  <TabItem label="API Errors (60xxx)">
+  <TabItem label="API & Helpers Errors (60xxx/70xxx)">
     ```typescript
 
     const apiErrors = {
@@ -93,7 +96,7 @@ Handle wallet connection failures gracefully:
 ```typescript
 // @noErrorValidation
 import { USwapError } from "@tcswap/helpers";
-import { Chain } from "@tcswap/types";
+import { Chain } from "@tcswap/helpers";
 
 async function connectWallet() {
   try {
@@ -152,7 +155,7 @@ import { USwapError, AssetValue } from "@tcswap/helpers";
 async function executeTransaction(params: TransactionParams) {
   try {
     const txHash = await uSwap.transfer({
-      assetValue: AssetValue.fromString("ETH.ETH", "0.1"),
+      assetValue: AssetValue.from({ asset: "ETH.ETH", value: "0.1" }),
       recipient: params.recipient,
     });
 
@@ -162,7 +165,7 @@ async function executeTransaction(params: TransactionParams) {
       const errorKey = error.message.split(":")[0];
 
       switch (errorKey) {
-        case "core_transaction_insufficient_funds_error":
+        case "core_transaction_deposit_insufficient_funds_error":
           return {
             success: false,
             error: "Insufficient balance for this transaction",
@@ -223,7 +226,9 @@ Handle swap-specific errors with context:
 // @noErrorValidation
 import { USwapError } from "@tcswap/helpers";
 
-async function performSwap(route: SwapRoute) {
+import type { QuoteResponseRoute } from "@tcswap/helpers/api";
+
+async function performSwap(route: QuoteResponseRoute) {
   try {
     const txHash = await uSwap.swap({ route });
     return { success: true, txHash };
@@ -232,14 +237,16 @@ async function performSwap(route: SwapRoute) {
       const errorKey = error.message.split(":")[0];
 
       switch (errorKey) {
-        case "core_swap_invalid_params":
-          const errorInfo = JSON.parse(error.message.split(": ")[1] || "{}");
+        case "core_swap_invalid_params": {
+          const [, infoJson] = error.message.split(/: (.*)/s);
+          const errorInfo = infoJson ? JSON.parse(infoJson) : {};
           return {
             success: false,
             error: "Invalid swap parameters",
             details: errorInfo,
             action: "validate_inputs",
           };
+        }
 
         case "core_swap_route_not_complete":
           return {
@@ -251,7 +258,7 @@ async function performSwap(route: SwapRoute) {
         case "thorchain_chain_halted":
           return {
             success: false,
-            error: "THORChain trading is temporarily halted",
+            error: "THORChain is temporarily halted",
             action: "wait_and_retry",
             retryAfter: 300000,
           };
@@ -289,6 +296,9 @@ Implement retry logic for transient errors:
 
 ```typescript
 // @noErrorValidation
+import { USwapError } from "@tcswap/helpers";
+import { USwapApi } from "@tcswap/helpers/api";
+
 interface RetryOptions {
   maxRetries: number;
   baseDelay: number;
@@ -341,7 +351,7 @@ async function withRetry<T>(
   throw lastError!;
 }
 
-const quote = await withRetry(() => uSwapApi.getSwapQuote(params));
+const quote = await withRetry(() => USwapApi.getSwapQuote(params));
 ```
 
 ### Circuit Breaker Pattern
@@ -350,6 +360,9 @@ Prevent cascading failures:
 
 ```typescript
 // @noErrorValidation
+import { USwapError } from "@tcswap/helpers";
+import type { QuoteResponseRoute } from "@tcswap/helpers/api";
+
 class CircuitBreaker {
   private failures = 0;
   private lastFailTime = 0;
@@ -395,7 +408,7 @@ class CircuitBreaker {
 
 const circuitBreaker = new CircuitBreaker(3, 30000);
 
-const performSwapWithCircuitBreaker = async (route: SwapRoute) => {
+const performSwapWithCircuitBreaker = async (route: QuoteResponseRoute) => {
   return circuitBreaker.execute(() => uSwap.swap({ route }));
 };
 ```
@@ -406,6 +419,8 @@ Implement fallback mechanisms for critical operations:
 
 ```typescript
 // @noErrorValidation
+import { USwapApi, type QuoteRequest } from "@tcswap/helpers/api";
+
 interface FallbackConfig {
   primary: () => Promise<any>;
   fallbacks: (() => Promise<any>)[];
@@ -438,11 +453,12 @@ async function withFallback<T>(config: FallbackConfig): Promise<T> {
   throw lastError!;
 }
 
-const getQuoteWithFallback = async (params: QuoteParams) => {
+const getQuoteWithFallback = async (params: QuoteRequest) => {
   return withFallback({
-    primary: () => uSwapApi.getSwapQuote(params),
+    primary: () => USwapApi.getSwapQuote(params),
     fallbacks: [
-      () => thorchainApi.getSwapQuote(params),
+      // e.g. retry with a narrower provider list, or your own backup quote source
+      () => USwapApi.getSwapQuote({ ...params, providers: ["THORCHAIN"] }),
       () => localQuoteCalculation(params),
     ],
     validator: (quote) => quote && quote.routes && quote.routes.length > 0,
@@ -458,6 +474,8 @@ Collect comprehensive error context:
 
 ```typescript
 // @noErrorValidation
+import type { QuoteResponseRoute } from "@tcswap/helpers/api";
+
 interface ErrorContext {
   timestamp: number;
   userAgent: string;
@@ -512,7 +530,7 @@ class ErrorTracker {
   }
 }
 
-async function trackedSwap(route: SwapRoute) {
+async function trackedSwap(route: QuoteResponseRoute) {
   try {
     return await uSwap.swap({ route });
   } catch (error) {
@@ -551,7 +569,7 @@ async function diagnoseNetwork(): Promise<NetworkDiagnostics> {
 
 
   try {
-    await fetch('https:
+    await fetch('https://api.thorchain.org/v1', { method: 'HEAD' });
     diagnostics.connectivity = true;
   } catch {
     diagnostics.connectivity = false;
@@ -559,8 +577,8 @@ async function diagnoseNetwork(): Promise<NetworkDiagnostics> {
 
 
   const rpcTests = [
-    { name: 'ethereum', url: 'https:
-    { name: 'thorchain', url: 'https:
+    { name: 'ethereum', url: 'https://ethereum-rpc.publicnode.com' },
+    { name: 'thorchain', url: 'https://gateway.liquify.com/chain/thorchain_rpc' },
   ];
 
   await Promise.allSettled(
@@ -584,8 +602,8 @@ async function diagnoseNetwork(): Promise<NetworkDiagnostics> {
 
 
   const apiTests = [
-    { name: 'uswap', url: 'https:
-    { name: 'thorchain', url: 'https:
+    { name: 'tcswap-api', url: 'https://api.thorchain.org/v1' },
+    { name: 'thorchain', url: 'https://gateway.liquify.com/chain/thorchain_api/thorchain/network' },
   ];
 
   await Promise.allSettled(
@@ -609,6 +627,9 @@ Debug transaction states and failures:
 
 ```typescript
 // @noErrorValidation
+import type { EVMChain } from "@tcswap/helpers";
+import { getProvider } from "@tcswap/toolboxes/evm";
+
 interface TransactionDebugInfo {
   txHash?: string;
   status: "pending" | "confirmed" | "failed" | "unknown";
@@ -621,26 +642,24 @@ interface TransactionDebugInfo {
 
 async function debugTransaction(
   txHash: string,
-  chain: Chain
+  chain: EVMChain
 ): Promise<TransactionDebugInfo> {
   try {
-    const toolbox = await uSwap.getToolbox(chain);
+    // ethers v6 JsonRpcProvider for the chain's configured RPC URL
+    const provider = await getProvider(chain);
+    const receipt = await provider.getTransactionReceipt(txHash);
 
-    if ("provider" in toolbox && toolbox.provider) {
-      const receipt = await toolbox.provider.getTransactionReceipt(txHash);
-
-      if (receipt) {
-        return {
-          txHash,
-          status: receipt.status === 1 ? "confirmed" : "failed",
-          gasUsed: receipt.gasUsed?.toString(),
-          blockNumber: receipt.blockNumber?.toString(),
-          confirmations: receipt.confirmations,
-        };
-      }
+    if (receipt) {
+      return {
+        txHash,
+        status: receipt.status === 1 ? "confirmed" : "failed",
+        gasUsed: receipt.gasUsed.toString(),
+        blockNumber: receipt.blockNumber.toString(),
+        confirmations: await receipt.confirmations(),
+      };
     }
 
-    const tx = await toolbox.provider?.getTransaction(txHash);
+    const tx = await provider.getTransaction(txHash);
 
     if (tx) {
       return {
@@ -673,6 +692,8 @@ Set up comprehensive error monitoring:
 
 ```typescript
 // @noErrorValidation
+import { USwapError } from "@tcswap/helpers";
+
 interface ErrorMetrics {
   errorRate: number;
   commonErrors: Array<{
@@ -796,7 +817,7 @@ const errorMessages = {
     severity: "warning",
   },
 
-  core_transaction_insufficient_funds_error: {
+  core_transaction_deposit_insufficient_funds_error: {
     title: "Insufficient Balance",
     message: "You don't have enough funds for this transaction",
     action: "Add Funds",

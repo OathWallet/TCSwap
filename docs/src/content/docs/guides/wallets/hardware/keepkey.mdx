@@ -1,19 +1,22 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: KeepKey Hardware Wallet Integration
 description: Complete guide to integrating KeepKey hardware wallets with TCSwap SDK v4
 ---
 
-KeepKey is a premium hardware wallet that provides secure cryptocurrency storage with a large OLED display for transaction verification. TCSwap SDK v4 supports KeepKey devices across multiple blockchain networks through the KeepKey SDK integration.
+{/* Modifications © 2025 Horizontal Systems. */}
+
+KeepKey is a premium hardware wallet that provides secure cryptocurrency storage with a large OLED display for transaction verification. TCSwap supports KeepKey devices through `keepkeyWallet` (`connectKeepkey`), which talks to the device via KeepKey Desktop's local REST bridge using `@keepkey/keepkey-sdk`.
 
 ## Supported Chains
 
-TCSwap supports KeepKey devices on these chains:
+`connectKeepkey` accepts the following chains (`KEEPKEY_SUPPORTED_CHAINS`):
 
-- **EVM Compatible**: Ethereum, Arbitrum, Avalanche, Base, BinanceSmartChain, Optimism, Polygon
-- **UTXO Chains**: Bitcoin, Bitcoin Cash, Dash, Dogecoin, Litecoin
-- **Cosmos Ecosystem**: Cosmos, THORChain, Maya
-- **Other Chains**: Ripple
+- **EVM**: Arbitrum, Avalanche, Base, BNB Smart Chain, Ethereum, Monad, Optimism, Polygon, X Layer
+- **UTXO**: Bitcoin, Bitcoin Cash, Dash, Dogecoin, Litecoin
+- **Cosmos ecosystem**: Cosmos Hub, THORChain, Maya
+- **Other**: Ripple (XRP)
+
+For the KeepKey browser extension (no KeepKey Desktop bridge), see the separate KeepKey BEX page (`keepkeyBexWallet`, `connectKeepkeyBex`).
 
 ## Installation and Setup
 
@@ -25,7 +28,7 @@ TCSwap supports KeepKey devices on these chains:
 
 ### 2. Install KeepKey Desktop
 
-1. Download KeepKey Desktop from [keepkey.com](https:
+1. Download KeepKey Desktop from [keepkey.com](https://keepkey.com/get-started)
 2. Install and run the desktop application
 3. The desktop app provides the bridge service required for web integration
 4. Ensure the KeepKey Desktop is running in the background
@@ -52,30 +55,33 @@ KeepKey works with modern browsers through the desktop bridge:
 
 ### Configuration Setup
 
-Before using KeepKey, you need to configure the integration settings:
+`connectKeepkey` requires `config.integrations.keepKey` (pairing info with `name`, `imageUrl`, `basePath` and `url`) and throws `KeepKey config not found` without it. `apiKeys.keepKey` defaults to `"1234"`; after pairing, the key issued by KeepKey Desktop is stored with `USwapConfig.setApiKey("keepKey", ...)`, so persist it yourself (for example in `localStorage`) to skip re-pairing next session.
+
+If the KeepKey Desktop bridge is not reachable on `localhost:1646`, `connectKeepkey` opens `keepkey://launch` and retries every 30 seconds (up to three times).
 
 ```ts twoslash
-
 import { USwap, keepkeyWallet, Chain } from "@tcswap/sdk";
 
 const uSwap = USwap({
   config: {
     apiKeys: {
       uSwap: "your-api-key",
-      keepKey: "your-keepkey-api-key",
+      keepKey: localStorage.getItem("keepkeyApiKey") || "1234",
     },
     integrations: {
       keepKey: {
-
-        serviceName: "USwap",
-        serviceImageUrl: "https:
-
+        name: "My DApp",
+        imageUrl: `${window.location.origin}/icon.png`,
+        basePath: "http://localhost:1646/spec/swagger.json",
+        url: "http://localhost:1646",
       },
     },
   },
   wallets: { ...keepkeyWallet },
 });
 ```
+
+The shorter examples below omit this config for brevity; it is still required.
 
 ### Basic Connection
 
@@ -89,8 +95,10 @@ const uSwap = USwap({
   config: {
     integrations: {
       keepKey: {
-        serviceName: "My DApp",
-        serviceImageUrl: "https:
+        name: "My DApp",
+        imageUrl: "https://your-app.com/logo.png",
+        basePath: "http://localhost:1646/spec/swagger.json",
+        url: "http://localhost:1646",
       },
     },
   },
@@ -126,8 +134,10 @@ const uSwap = USwap({
   config: {
     integrations: {
       keepKey: {
-        serviceName: "Multi-Chain DApp",
-        serviceImageUrl: "https:
+        name: "Multi-Chain DApp",
+        imageUrl: "https://your-app.com/logo.png",
+        basePath: "http://localhost:1646/spec/swagger.json",
+        url: "http://localhost:1646",
       },
     },
   },
@@ -210,7 +220,7 @@ await uSwap.connectKeepkey([Chain.Bitcoin]);
 
 async function sendBitcoin() {
   const recipient = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("BTC.BTC", 0.001);
+  const amount = AssetValue.from({ asset: "BTC.BTC", value: 0.001 });
 
   try {
     console.log("Preparing Bitcoin transaction...");
@@ -245,7 +255,7 @@ await uSwap.connectKeepkey([Chain.Ethereum]);
 
 async function sendEthereum() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+  const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -263,10 +273,10 @@ async function sendEthereum() {
 
 async function sendERC20Token() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature(
-    "ETH.USDC-0xA0B86A33E6441E89D5E4C4EDF4C8DF4C0E6C62F6",
-    100
-  );
+  const amount = AssetValue.from({
+    asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    value: 100,
+  });
 
   try {
     const txHash = await uSwap.transfer({
@@ -296,7 +306,7 @@ await uSwap.connectKeepkey([Chain.Cosmos]);
 
 async function sendCosmos() {
   const recipient = "cosmos1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("GAIA.ATOM", 1);
+  const amount = AssetValue.from({ asset: "GAIA.ATOM", value: 1 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -327,7 +337,7 @@ await uSwap.connectKeepkey([Chain.THORChain]);
 
 async function sendThorchain() {
   const recipient = "thor1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("THOR.RUNE", 10);
+  const amount = AssetValue.from({ asset: "THOR.RUNE", value: 10 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -345,7 +355,7 @@ async function sendThorchain() {
 }
 
 async function depositToThorchain() {
-  const amount = AssetValue.fromChainOrSignature("THOR.RUNE", 100);
+  const amount = AssetValue.from({ asset: "THOR.RUNE", value: 100 });
   const memo = "ADD:BTC.BTC:bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
 
   try {
@@ -427,8 +437,8 @@ async function setupUTXOChains() {
   const derivationPaths: Record<Chain, DerivationPathArray> = {
     [Chain.Bitcoin]: [84, 0, 0, 0, 0],
     [Chain.Litecoin]: [84, 2, 0, 0, 0],
-    [Chain.Dogecoin]: [84, 3, 0, 0, 0],
-    [Chain.Dash]: [84, 5, 0, 0, 0],
+    [Chain.Dogecoin]: [44, 3, 0, 0, 0],
+    [Chain.Dash]: [44, 5, 0, 0, 0],
   };
 
   try {
@@ -464,7 +474,7 @@ async function diagnosticConnection() {
     if (!isAvailable) {
       console.log("❌ KeepKey Desktop not running");
       console.log("🔧 Troubleshooting steps:");
-      console.log("1. Install KeepKey Desktop from https:
+      console.log("1. Install KeepKey Desktop from https://keepkey.com/get-started");
       console.log("2. Launch KeepKey Desktop application");
       console.log("3. Ensure it's running in the background");
       return { success: false, error: "KeepKey Desktop not available" };
@@ -476,8 +486,10 @@ async function diagnosticConnection() {
       config: {
         integrations: {
           keepKey: {
-            serviceName: "Diagnostic Test",
-            serviceImageUrl: "https:
+            name: "Diagnostic Test",
+            imageUrl: "https://your-app.com/logo.png",
+            basePath: "http://localhost:1646/spec/swagger.json",
+            url: "http://localhost:1646",
           },
         },
       },
@@ -515,7 +527,7 @@ async function diagnosticConnection() {
 
 async function checkKeepkeyAvailability(): Promise<boolean> {
   try {
-    const response = await fetch("http:
+    const response = await fetch("http://localhost:1646/spec/swagger.json");
     return response.status === 200;
   } catch (error) {
     return false;
@@ -526,7 +538,7 @@ async function checkKeepkeyAvailability(): Promise<boolean> {
 ### Pairing Issues
 
 ```ts twoslash
-
+import { USwap, USwapConfig, keepkeyWallet, Chain } from "@tcswap/sdk";
 
 async function handleFirstTimePairing() {
   try {
@@ -537,8 +549,10 @@ async function handleFirstTimePairing() {
         },
         integrations: {
           keepKey: {
-            serviceName: "My DApp",
-            serviceImageUrl: "https:
+            name: "My DApp",
+            imageUrl: "https://your-app.com/logo.png",
+            basePath: "http://localhost:1646/spec/swagger.json",
+            url: "http://localhost:1646",
           },
         },
       },
@@ -551,7 +565,9 @@ async function handleFirstTimePairing() {
     await uSwap.connectKeepkey([Chain.Bitcoin]);
 
     console.log("✅ Pairing successful!");
-    console.log("💾 Pairing information has been saved for future sessions");
+    // The API key issued during pairing is now in USwapConfig (apiKeys.keepKey);
+    // persist it yourself to avoid pairing again next session
+    localStorage.setItem("keepkeyApiKey", USwapConfig.get("apiKeys").keepKey);
 
     return { success: true };
   } catch (error) {
@@ -575,7 +591,7 @@ async function handleFirstTimePairing() {
 ```ts twoslash
 async function handleTransactionErrors() {
   try {
-    const amount = AssetValue.fromChainOrSignature("BTC.BTC", 0.001);
+    const amount = AssetValue.from({ asset: "BTC.BTC", value: 0.001 });
     const txHash = await uSwap.transfer({
       assetValue: amount,
       recipient: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
@@ -625,14 +641,16 @@ const secureConfig = {
     },
     integrations: {
       keepKey: {
-        serviceName: "Your App Name",
-        serviceImageUrl: "https:
+        name: "Your App Name",
+        imageUrl: "https://your-app.com/logo.png",
+        basePath: "http://localhost:1646/spec/swagger.json",
+        url: "http://localhost:1646",
       },
     },
 
     rpcUrls: {
-      [Chain.Ethereum]: "https:
-      [Chain.Bitcoin]: "https:
+      [Chain.Ethereum]: ["https://ethereum-rpc.publicnode.com"],
+      [Chain.Bitcoin]: ["https://bitcoin-rpc.publicnode.com"],
     },
   },
   wallets: { ...keepkeyWallet },
@@ -654,7 +672,7 @@ async function verifyAddressOnDevice() {
 
 
 async function secureTransaction() {
-  const amount = AssetValue.fromChainOrSignature("BTC.BTC", 0.001);
+  const amount = AssetValue.from({ asset: "BTC.BTC", value: 0.001 });
   const recipient = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
 
   console.log("📋 Transaction Details:");
@@ -693,12 +711,10 @@ const secureUSwap = USwap({
   config: {
     rpcUrls: {
 
-      [Chain.Ethereum]: "https:
-      [Chain.Bitcoin]: "https:
-      [Chain.Cosmos]: "https:
+      [Chain.Ethereum]: ["https://ethereum-rpc.publicnode.com"],
+      [Chain.Bitcoin]: ["https://bitcoin-rpc.publicnode.com"],
+      [Chain.Cosmos]: ["https://cosmos-rpc.publicnode.com"],
     },
-
-    allowInsecureConnection: false,
   },
   wallets: { ...keepkeyWallet },
 });
@@ -719,8 +735,10 @@ class KeepKeyAccountManager {
       config: {
         integrations: {
           keepKey: {
-            serviceName: "Multi-Account Manager",
-            serviceImageUrl: "https:
+            name: "Multi-Account Manager",
+            imageUrl: "https://your-app.com/logo.png",
+            basePath: "http://localhost:1646/spec/swagger.json",
+            url: "http://localhost:1646",
           },
         },
       },
@@ -792,8 +810,10 @@ export function KeepKeyWallet({ onConnect, onError }: KeepKeyWalletProps) {
     config: {
       integrations: {
         keepKey: {
-          serviceName: "React DApp",
-          serviceImageUrl: `${window.location.origin}/icon.png`,
+          name: "React DApp",
+          imageUrl: `${window.location.origin}/icon.png`,
+          basePath: "http://localhost:1646/spec/swagger.json",
+          url: "http://localhost:1646",
         },
       },
     },

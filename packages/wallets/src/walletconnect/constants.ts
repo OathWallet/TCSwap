@@ -31,7 +31,7 @@ export const DEFAULT_LOGGER = "error";
 
 export const DEFAULT_APP_METADATA: ClientMetadata = {
   description: "TCSwap cross-chain SDK",
-  icons: ["https://raw.githubusercontent.com/thorchain/TCSwap/refs/heads/main/docs/src/assets/logo-black.png"],
+  icons: [],
   name: "TCSwap",
   url: "https://github.com/thorchain/TCSwap",
 };

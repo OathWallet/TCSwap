@@ -1,0 +1,47 @@
+---
+title: Polkadot.js Extension Integration
+description: Connect the Polkadot.js browser extension to TCSwap for Polkadot
+---
+
+The Polkadot.js browser extension is supported through `polkadotWallet`, which adds the `connectPolkadotJs` method to your TCSwap client (`WalletOption.POLKADOT_JS`).
+
+## Supported Chains
+
+- **Polkadot** only (`POLKADOT_SUPPORTED_CHAINS`).
+
+## Installation and Import
+
+```bash
+bun add @tcswap/sdk
+```
+
+```ts twoslash
+import { Chain, USwap, polkadotWallet } from "@tcswap/sdk";
+```
+
+## Connecting
+
+```ts twoslash
+import { AssetValue, Chain, USwap, polkadotWallet } from "@tcswap/sdk";
+
+const uSwap = USwap({
+  config: { apiKeys: { uSwap: "your-api-key" } },
+  wallets: { ...polkadotWallet },
+});
+
+await uSwap.connectPolkadotJs([Chain.Polkadot]);
+
+const address = uSwap.getAddress(Chain.Polkadot);
+
+const txHash = await uSwap.transfer({
+  assetValue: AssetValue.from({ chain: Chain.Polkadot, value: 1 }),
+  recipient: "RECIPIENT_POLKADOT_ADDRESS",
+});
+```
+
+## Notes
+
+- The extension is enabled through `window.injectedWeb3["polkadot-js"]`. If it is missing or cannot be enabled, connecting throws `wallet_polkadot_not_found`.
+- The first account the extension returns is used, converted to the Polkadot SS58 format (prefix `0`). If there is no account, connecting throws `wallet_missing_params`.
+- Transactions are signed with the extension's signer through the Substrate toolbox.
+- Talisman also supports Polkadot (plus Chainflip and EVM chains); see the Talisman page.

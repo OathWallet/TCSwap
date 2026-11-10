@@ -1,6 +1,6 @@
 # NEAR Names Integration
 
-This component provides a user interface for registering and managing NEAR Names (.near domains) directly from the SwapKit playground.
+This component provides a user interface for registering and managing NEAR Names (.near domains) directly from the TCSwap playground.
 
 ## Features
 

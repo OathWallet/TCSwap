@@ -41,7 +41,7 @@ describe("USwapNumber", () => {
       expect(skNumber6.decimalMultiplier).toBe(100000000n);
     });
 
-    test("creates SwapKitInstance from BigInt: (12.345678901234, decimals: 12)", () => {
+    test("creates instance from BigInt: (12.345678901234, decimals: 12)", () => {
       const skNumber = USwapNumber.fromBigInt(12345678901234n, 12);
 
       expect(skNumber.getValue("string")).toBe("12.345678901234");

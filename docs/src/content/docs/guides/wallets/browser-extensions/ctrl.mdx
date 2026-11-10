@@ -1,0 +1,50 @@
+---
+title: Ctrl Wallet Integration
+description: Connect the Ctrl (formerly XDEFI) browser extension to TCSwap for EVM, UTXO, Cosmos, THORChain, Maya, Solana and NEAR
+---
+
+Ctrl Wallet is supported through `ctrlWallet`, which adds the `connectCtrl` method to your TCSwap client (`WalletOption.CTRL`).
+
+## Supported Chains
+
+`connectCtrl` accepts the following chains (`CTRL_SUPPORTED_CHAINS`):
+
+- **EVM**: Arbitrum, Aurora, Avalanche, Base, Berachain, BNB Smart Chain, Ethereum, Gnosis, Monad, Optimism, Polygon, X Layer
+- **UTXO**: Bitcoin, Bitcoin Cash, Dogecoin, Litecoin
+- **Cosmos ecosystem**: Cosmos Hub, Kujira, Noble, THORChain, Maya
+- **Other**: Solana, NEAR
+
+## Installation and Import
+
+```bash
+bun add @tcswap/sdk
+```
+
+```ts twoslash
+import { Chain, USwap, ctrlWallet } from "@tcswap/sdk";
+```
+
+## Connecting
+
+```ts twoslash
+import { AssetValue, Chain, USwap, ctrlWallet } from "@tcswap/sdk";
+
+const uSwap = USwap({
+  config: { apiKeys: { uSwap: "your-api-key" } },
+  wallets: { ...ctrlWallet },
+});
+
+await uSwap.connectCtrl([Chain.Bitcoin, Chain.Ethereum, Chain.THORChain]);
+
+const txHash = await uSwap.transfer({
+  assetValue: AssetValue.from({ asset: "BTC.BTC", value: 0.001 }),
+  recipient: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+});
+```
+
+## Notes
+
+- Everything goes through the `window.ctrl` namespace: `ethereum` (EVM), `keplr` (Cosmos Hub, Kujira, Noble), `bitcoin`, `bitcoincash`, `dogecoin`, `litecoin`, `solana`, `thorchain`, `mayachain` and `near`. Without `window.ctrl`, connecting throws `wallet_ctrl_not_found`.
+- UTXO, THORChain and Maya transfers are signed and sent by the extension itself. The THORChain and Maya wallets also expose `deposit` (a `MsgDeposit` through the extension).
+- When connecting an EVM chain other than Ethereum, Ctrl is asked to switch to (or add) that network; a failure throws `wallet_failed_to_add_or_switch_network`. Later EVM calls switch the network on demand.
+- For NEAR, if the account is not signed in yet, Ctrl is asked to connect first.

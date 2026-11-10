@@ -1,0 +1,63 @@
+---
+title: Plugins Overview
+description: All swap plugins shipped in @tcswap/plugins, their import paths and which ones @tcswap/sdk enables by default
+---
+
+Plugins turn a quote route from the TCSwap API into a transaction signed by a connected wallet. Each plugin declares the providers it handles in `supportedUSwapProviders`; `uSwap.swap({ route })` picks the plugin that lists `route.providers[0]` (or the one you name with `pluginName`).
+
+## Available plugins
+
+| Plugin export | Import path | Providers | What it does | In `createUSwap()` by default |
+| --- | --- | --- | --- | --- |
+| `ChainflipPlugin` | `@tcswap/plugins/chainflip` | `CHAINFLIP`, `CHAINFLIP_STREAMING` | Opens a Chainflip deposit channel and transfers the sell asset to it. Also exports `ChainflipBroker`. | Yes |
+| `EVMPlugin` | `@tcswap/plugins/evm` | `CAMELOT_V3`, `OPENOCEAN_V2`, `OKX`, `ONEINCH`, `PANCAKESWAP`, `PANGOLIN_V1`, `SUSHISWAP_V2`, `TRADERJOE_V2`, `UNISWAP_V2`, `UNISWAP_V3` | Sends the aggregator's EVM transaction (`route.tx`); exposes token approval helpers. | Yes |
+| `GardenPlugin` | `@tcswap/plugins/garden` | `GARDEN` | Garden bridge swaps from EVM chains, Solana and transfer-based chains. See [Garden](/guides/plugins/garden). | Yes |
+| `HoudiniPlugin` | `@tcswap/plugins/houdini` | `HOUDINI` | Houdini Swap private routes: a plain transfer to the order's deposit address. See [Houdini](/guides/plugins/houdini). | Yes |
+| `NearPlugin` | `@tcswap/plugins/near` | `NEAR` | NEAR Intents swaps, plus `nearNames` helpers (`getInfo`, `isAvailable`, `lookupNames`, `register`, `resolve`, `transfer`). | Yes |
+| `RadixPlugin` | `@tcswap/plugins/radix` | `CAVIAR_V1` | Signs and broadcasts the Radix transaction manifest from the route. | Yes |
+| `SolanaPlugin` | `@tcswap/plugins/solana` | `JUPITER` | Deserializes, signs and broadcasts the Jupiter `VersionedTransaction`. | Yes |
+| `ThorchainPlugin` | `@tcswap/plugins/thorchain` | `THORCHAIN`, `THORCHAIN_STREAMING` | THORChain swaps plus liquidity, TCY, THORName and node actions. | Yes |
+| `MayachainPlugin` | `@tcswap/plugins/thorchain` | `MAYACHAIN`, `MAYACHAIN_STREAMING` | Same feature set as `ThorchainPlugin`, for Maya Protocol. | Yes |
+
+All of the above are spread into `defaultPlugins` in `@tcswap/sdk`, so `createUSwap()` registers every plugin. Plugins you pass in `plugins` are merged on top of the defaults.
+
+`@tcswap/sdk` also re-exports every plugin module except Garden, so `GardenPlugin` has to be imported from `@tcswap/plugins/garden` when you build a client yourself.
+
+## Using plugins
+
+With the all-in-one SDK every plugin is already registered:
+
+```ts
+import { createUSwap } from "@tcswap/sdk";
+
+const uSwap = createUSwap();
+```
+
+To ship only what you need, build the client with `USwap` and pick plugins:
+
+```ts
+import { USwap } from "@tcswap/core";
+import { EVMPlugin } from "@tcswap/plugins/evm";
+import { GardenPlugin } from "@tcswap/plugins/garden";
+import { ThorchainPlugin } from "@tcswap/plugins/thorchain";
+import { keystoreWallet } from "@tcswap/wallets/keystore";
+
+const uSwap = USwap({
+  plugins: { ...EVMPlugin, ...GardenPlugin, ...ThorchainPlugin },
+  wallets: { ...keystoreWallet },
+});
+```
+
+Each plugin's methods are also available on the client under the plugin's name, for example `uSwap.thorchain.deposit(...)` or `uSwap.near.nearNames.resolve(...)`.
+
+## Loading plugins lazily
+
+`loadPlugin` from `@tcswap/plugins` dynamically imports a plugin by name. It handles `chainflip`, `thorchain`, `radix`, `evm`, `solana`, `near` and `houdini`. Garden and Mayachain are not handled there; import them directly.
+
+```ts
+import { loadPlugin } from "@tcswap/plugins";
+
+const HoudiniPlugin = await loadPlugin("houdini");
+```
+
+To write your own plugin, see [Create a Plugin](/guides/create-plugin).

@@ -1,0 +1,55 @@
+---
+title: Radix Wallet Integration
+description: Connect the Radix Wallet to TCSwap through the Radix dApp Toolkit
+---
+
+The Radix Wallet is supported through `radixWallet`, which adds the `connectRadixWallet` method to your TCSwap client (`WalletOption.RADIX_WALLET`). It uses the Radix dApp Toolkit (`@radixdlt/radix-dapp-toolkit`) to request one account from the wallet.
+
+## Supported Chains
+
+- **Radix** only (`RADIX_SUPPORTED_CHAINS`).
+
+## Installation and Import
+
+```bash
+bun add @tcswap/sdk
+```
+
+```ts twoslash
+import { Chain, USwap, radixWallet } from "@tcswap/sdk";
+```
+
+## Connecting
+
+The dApp Toolkit is configured from `config.integrations.radix`. TCSwap ships a default (mainnet, `applicationName: "TCSwap Playground"`); set your own dApp definition address and application name for production.
+
+```ts twoslash
+import { Chain, USwap, radixWallet } from "@tcswap/sdk";
+
+const uSwap = USwap({
+  config: {
+    apiKeys: { uSwap: "your-api-key" },
+    integrations: {
+      radix: {
+        dAppDefinitionAddress: "account_rdx1...",
+        applicationName: "My DApp",
+        applicationVersion: "1.0.0",
+        network: { networkId: 1, networkName: "mainnet", dashboardBase: "https://dashboard.radixdlt.com" },
+      },
+    },
+  },
+  wallets: { ...radixWallet },
+});
+
+await uSwap.connectRadixWallet([Chain.Radix]);
+
+const address = uSwap.getAddress(Chain.Radix);
+const balance = await uSwap.getBalance(Chain.Radix, true);
+```
+
+## Notes
+
+- If a Radix account is already shared with the dApp, it is reused; otherwise the wallet is asked for exactly one account. No account throws `wallet_radix_no_account`.
+- `transfer` is not supported: the wallet's `transfer` throws `wallet_radix_method_not_supported`, and `uSwap.transfer` rejects Radix assets. Swaps go through the Radix plugin, which signs with the wallet's `signAndBroadcast({ manifest, message })`.
+- The wallet object also exposes the underlying toolkit instance as `radixDappToolkit` (via `uSwap.getWallet(WalletOption.RADIX_WALLET, Chain.Radix)` or `uSwap.getWalletByChain(Chain.Radix)`).
+- Balances are fetched from the Radix Gateway API.

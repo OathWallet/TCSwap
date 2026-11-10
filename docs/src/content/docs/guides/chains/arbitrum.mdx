@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Arbitrum Integration
 description: Complete guide to integrating Arbitrum One with TCSwap SDK for Layer 2 DeFi and cross-chain operations
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem, Code } from "@astrojs/starlight/components";
 
@@ -40,28 +41,26 @@ import { createUSwap, Chain } from '@tcswap/sdk';
 
 const uSwap = createUSwap();
 
-const arbWallet = await uSwap.getWallet(Chain.Arbitrum);
+await uSwap.connectKeystore([Chain.Arbitrum], "your twelve word mnemonic phrase here");
 
-````
+const arbWallet = uSwap.getWalletByChain(Chain.Arbitrum);
+```
 </TabItem>
 <TabItem label="Standalone Toolbox">
 ```typescript
 // @noErrorValidation
-import { getArbitrumToolbox } from '@tcswap/toolboxes/evm';
+import { ARBToolbox } from '@tcswap/toolboxes/evm';
 
-
-const arbToolbox = await getArbitrumToolbox({
+const arbToolbox = await ARBToolbox({
   phrase: "your twelve word mnemonic phrase here",
-
-  derivationPath: [44, 60, 0, 0, 0]
 });
 
-
-const arbToolbox = await getArbitrumToolbox({
+// or bring your own ethers signer and provider
+const customArbToolbox = await ARBToolbox({
   signer: customArbitrumSigner,
   provider: customArbitrumProvider
 });
-````
+```
 
 </TabItem>
 </Tabs>
@@ -78,9 +77,9 @@ import { Chain, FeeOption } from "@tcswap/sdk";
 
 await uSwap.connectKeystore([Chain.Arbitrum], "your mnemonic phrase");
 
-await uSwap.connectBrowserWallet(Chain.Arbitrum);
+await uSwap.connectEVMWallet([Chain.Arbitrum]);
 
-await uSwap.connectWalletConnect([Chain.Arbitrum]);
+await uSwap.connectWalletconnect([Chain.Arbitrum]);
 
 await uSwap.connectLedger([Chain.Arbitrum]);
 ```
@@ -115,39 +114,33 @@ Arbitrum supports the same ERC-20 standard with much lower gas costs:
 const usdcTransfer = await uSwap.transfer({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
   assetValue: AssetValue.from({
-    chain: Chain.Arbitrum,
-    symbol: "USDC",
-    address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    asset: "ARB.USDC-0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     value: "100",
   }),
   feeOptionKey: FeeOption.Average,
 });
 
-const toolbox = await getArbitrumToolbox({ phrase: "..." });
+const toolbox = await ARBToolbox({ phrase: "..." });
 
 const transfers = [
   {
     to: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-    token: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-    amount: "100000000",
+    asset: "ARB.USDC-0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    amount: "100",
   },
   {
     to: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-    token: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-    amount: "100000000000000000",
+    asset: "ARB.WETH-0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+    amount: "0.1",
   },
 ];
 
 for (const transfer of transfers) {
   const txHash = await toolbox.transfer({
     recipient: transfer.to,
-    assetValue: AssetValue.from({
-      chain: Chain.Arbitrum,
-      address: transfer.token,
-      value: transfer.amount,
-    }),
+    assetValue: AssetValue.from({ asset: transfer.asset, value: transfer.amount }),
   });
-  console.log(`Transfer ${transfer.token}: ${txHash}`);
+  console.log(`Transfer ${transfer.asset}: ${txHash}`);
 }
 ```
 
@@ -157,25 +150,25 @@ Arbitrum contracts work exactly like Ethereum but with lower costs:
 
 ```typescript
 // @noErrorValidation
+import { erc20ABI } from "@tcswap/helpers/contracts";
 
-const result = await toolbox.call({
-  contractAddress: "0x...",
-  abi: contractABI,
+const result = await toolbox.call<bigint>({
+  contractAddress: "0x912CE59144191C1204E64559FE8253a0e49E6548",
+  abi: erc20ABI,
   funcName: "balanceOf",
   funcParams: ["0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7"],
 });
 
-const txHash = await toolbox.call({
+const txHash = await toolbox.call<string>({
   contractAddress: "0x912CE59144191C1204E64559FE8253a0e49E6548",
   abi: erc20ABI,
   funcName: "transfer",
   funcParams: [
     "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-    "1000000000000000000",
+    1000000000000000000n,
   ],
   txOverrides: {
-    gasLimit: "65000",
-    value: "0",
+    gasLimit: 65000n,
   },
 });
 
@@ -187,7 +180,7 @@ const complexDefiTx = await toolbox.call({
     /* complex parameters */
   ],
   txOverrides: {
-    gasLimit: "500000",
+    gasLimit: 500000n,
   },
 });
 ```
@@ -199,26 +192,29 @@ Arbitrum has unique gas characteristics compared to Ethereum:
 ```typescript
 // @noErrorValidation
 
-const gasInfo = await toolbox.getGasPrices();
+const gasPrices = await toolbox.estimateGasPrices();
 console.log({
-  slow: gasInfo.average,
-  standard: gasInfo.fast,
-  fast: gasInfo.fastest,
+  average: gasPrices.average,
+  fast: gasPrices.fast,
+  fastest: gasPrices.fastest,
 });
 
-const txParams = await toolbox.buildTransaction({
+const txParams = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.Arbitrum, value: "0.1" }),
-  feeOptionKey: FeeOption.Fast,
-  gasLimit: "100000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.Arbitrum, value: "0.1" }),
+  gasLimit: 100000n,
 });
 
-const eip1559Tx = await toolbox.buildTransaction({
+const eip1559Tx = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.Arbitrum, value: "0.1" }),
-  maxFeePerGas: "2000000000",
-  maxPriorityFeePerGas: "100000000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.Arbitrum, value: "0.1" }),
+  maxFeePerGas: 2000000000n,
+  maxPriorityFeePerGas: 100000000n,
 });
+
+const txHash = await toolbox.sendTransaction({ ...eip1559Tx, feeOptionKey: FeeOption.Fast });
 ```
 
 ## Cross-Chain Operations
@@ -227,13 +223,14 @@ const eip1559Tx = await toolbox.buildTransaction({
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const bridgeQuote = await uSwap.getQuote({
+const bridgeQuote = await USwapApi.getSwapQuote({
   sellAsset: "ETH.ETH",
   sellAmount: "0.1",
   buyAsset: "ARB.ETH",
-  senderAddress: uSwap.getAddress(Chain.Ethereum),
-  recipientAddress: uSwap.getAddress(Chain.Arbitrum),
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+  destinationAddress: uSwap.getAddress(Chain.Arbitrum),
 });
 
 const bridgeTx = await uSwap.swap({
@@ -241,12 +238,12 @@ const bridgeTx = await uSwap.swap({
   feeOptionKey: FeeOption.Fast,
 });
 
-const usdcBridge = await uSwap.getQuote({
+const usdcBridge = await USwapApi.getSwapQuote({
   sellAsset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   sellAmount: "1000",
   buyAsset: "ARB.USDC-0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-  senderAddress: uSwap.getAddress(Chain.Ethereum),
-  recipientAddress: uSwap.getAddress(Chain.Arbitrum),
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+  destinationAddress: uSwap.getAddress(Chain.Arbitrum),
 });
 ```
 
@@ -254,13 +251,14 @@ const usdcBridge = await uSwap.getQuote({
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const arbToBtcQuote = await uSwap.getQuote({
+const arbToBtcQuote = await USwapApi.getSwapQuote({
   sellAsset: "ARB.ARB-0x912CE59144191C1204E64559FE8253a0e49E6548",
   sellAmount: "100",
   buyAsset: "BTC.BTC",
-  senderAddress: uSwap.getAddress(Chain.Arbitrum),
-  recipientAddress: uSwap.getAddress(Chain.Bitcoin),
+  sourceAddress: uSwap.getAddress(Chain.Arbitrum),
+  destinationAddress: uSwap.getAddress(Chain.Bitcoin),
 });
 
 const crossChainSwap = await uSwap.swap({
@@ -268,12 +266,12 @@ const crossChainSwap = await uSwap.swap({
   feeOptionKey: FeeOption.Fast,
 });
 
-const multiHopQuote = await uSwap.getQuote({
+const multiHopQuote = await USwapApi.getSwapQuote({
   sellAsset: "ARB.USDC-0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
   sellAmount: "500",
   buyAsset: "THOR.RUNE",
-  senderAddress: uSwap.getAddress(Chain.Arbitrum),
-  recipientAddress: uSwap.getAddress(Chain.THORChain),
+  sourceAddress: uSwap.getAddress(Chain.Arbitrum),
+  destinationAddress: uSwap.getAddress(Chain.THORChain),
 });
 ```
 
@@ -283,32 +281,33 @@ Access native Arbitrum DEXs for optimal pricing:
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const camelotQuote = await uSwap.getQuote({
+const camelotQuote = await USwapApi.getSwapQuote({
   sellAsset: "ARB.ETH",
   sellAmount: "0.1",
   buyAsset: "ARB.USDC-0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-  senderAddress: uSwap.getAddress(Chain.Arbitrum),
-  recipientAddress: uSwap.getAddress(Chain.Arbitrum),
-  providers: ["CAMELOT"],
+  sourceAddress: uSwap.getAddress(Chain.Arbitrum),
+  destinationAddress: uSwap.getAddress(Chain.Arbitrum),
+  providers: ["CAMELOT_V3"],
 });
 
-const traderjoeQuote = await uSwap.getQuote({
+const traderjoeQuote = await USwapApi.getSwapQuote({
   sellAsset: "ARB.USDC-0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
   sellAmount: "100",
   buyAsset: "ARB.ARB-0x912CE59144191C1204E64559FE8253a0e49E6548",
-  senderAddress: uSwap.getAddress(Chain.Arbitrum),
-  recipientAddress: uSwap.getAddress(Chain.Arbitrum),
+  sourceAddress: uSwap.getAddress(Chain.Arbitrum),
+  destinationAddress: uSwap.getAddress(Chain.Arbitrum),
   providers: ["TRADERJOE_V2"],
 });
 
-const bestRateQuote = await uSwap.getQuote({
+const bestRateQuote = await USwapApi.getSwapQuote({
   sellAsset: "ARB.WETH-0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
   sellAmount: "1",
   buyAsset: "ARB.GMX-0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
-  senderAddress: uSwap.getAddress(Chain.Arbitrum),
-  recipientAddress: uSwap.getAddress(Chain.Arbitrum),
-  providers: ["CAMELOT", "TRADERJOE_V2", "SUSHISWAP"],
+  sourceAddress: uSwap.getAddress(Chain.Arbitrum),
+  destinationAddress: uSwap.getAddress(Chain.Arbitrum),
+  providers: ["CAMELOT_V3", "TRADERJOE_V2", "SUSHISWAP_V2"],
 });
 ```
 
@@ -319,16 +318,16 @@ const bestRateQuote = await uSwap.getQuote({
 ```typescript
 // @noErrorValidation
 
-const arbBalance = await toolbox.getBalance(
-  uSwap.getAddress(Chain.Arbitrum),
-  "0x912CE59144191C1204E64559FE8253a0e49E6548"
+const balances = await toolbox.getBalance(uSwap.getAddress(Chain.Arbitrum));
+const arbBalance = balances.find(
+  (asset) => asset.symbol === "ARB-0x912CE59144191C1204E64559FE8253a0e49E6548"
 );
 
 const stakeArb = await toolbox.call({
   contractAddress: "0x...",
   abi: stakingABI,
   funcName: "stake",
-  funcParams: ["1000000000000000000"],
+  funcParams: [1000000000000000000n],
 });
 
 const governanceVote = await toolbox.call({
@@ -343,21 +342,24 @@ const governanceVote = await toolbox.call({
 
 ```typescript
 // @noErrorValidation
+import { getProvider } from "@tcswap/toolboxes/evm";
 
 const batchOperations = async () => {
-  const nonce = await toolbox.getTransactionCount(
-    uSwap.getAddress(Chain.Arbitrum)
-  );
+  const sender = uSwap.getAddress(Chain.Arbitrum);
+  const provider = await getProvider(Chain.Arbitrum);
+  const nonce = await provider.getTransactionCount(sender);
 
-  const tx1 = await toolbox.buildTransaction({
+  const tx1 = await toolbox.createTransaction({
     recipient: "0x...",
-    amount: AssetValue.from({ chain: Chain.Arbitrum, value: "0.1" }),
-    nonce: nonce,
+    sender,
+    assetValue: AssetValue.from({ chain: Chain.Arbitrum, value: "0.1" }),
+    nonce,
   });
 
-  const tx2 = await toolbox.buildTransaction({
+  const tx2 = await toolbox.createTransaction({
     recipient: "0x...",
-    amount: AssetValue.from({ chain: Chain.Arbitrum, value: "0.1" }),
+    sender,
+    assetValue: AssetValue.from({ chain: Chain.Arbitrum, value: "0.1" }),
     nonce: nonce + 1,
   });
 
@@ -380,34 +382,19 @@ import { USwapConfig } from '@tcswap/sdk';
 
 
 USwapConfig.setRpcUrl(Chain.Arbitrum, [
-  "https:
-  "https:
-  "https:
+  "https://arb1.arbitrum.io/rpc",
+  "https://arbitrum.blockpi.network/v1/rpc/public",
+  "https://arbitrum-one-rpc.publicnode.com",
 ]);
 
 
 import { JsonRpcProvider } from 'ethers';
 
-const arbitrumProvider = new JsonRpcProvider("https:
-const toolbox = await getArbitrumToolbox({
+const arbitrumProvider = new JsonRpcProvider("https://arb1.arbitrum.io/rpc");
+const toolbox = await ARBToolbox({
   phrase: "your mnemonic",
   provider: arbitrumProvider
 });
-```
-
-### Working with Arbitrum Goerli Testnet
-
-```typescript
-// @noErrorValidation
-
-USwapConfig.setRpcUrl(Chain.Arbitrum, "https:
-USwapConfig.setEnv('isMainnet', false);
-
-
-const testnetTokens = {
-  USDC: "0x8FB1E3fC51F3b789dED7557E680551d93Ea9d892",
-  WETH: "0xe39Ab88f8A4777030A534146A9Ca3B52bd5D43A3"
-};
 ```
 
 ## Error Handling
@@ -424,18 +411,15 @@ try {
   });
 } catch (error) {
   if (error instanceof USwapError) {
-    switch (error.code) {
-      case "toolbox_evm_insufficient_funds":
-        console.error("Insufficient ETH for gas on Arbitrum");
+    switch (error.message.split(":")[0]) {
+      case "toolbox_evm_error_estimating_gas_limit":
+        console.error("Gas estimation failed - check ETH balance for gas on Arbitrum");
         break;
-      case "toolbox_evm_gas_estimation_failed":
-        console.error("Gas estimation failed - may be network congestion");
+      case "toolbox_evm_gas_estimation_error":
+        console.error("Could not fetch gas prices - may be network congestion");
         break;
-      case "network_arbitrum_sequencer_down":
-        console.error("Arbitrum sequencer is down, try again later");
-        break;
-      case "bridge_deposit_not_confirmed":
-        console.error("Bridge deposit not yet confirmed on L1");
+      case "toolbox_evm_error_sending_transaction":
+        console.error("Transaction failed:", error.cause);
         break;
       default:
         console.error("Unknown error:", error);
@@ -451,35 +435,36 @@ try {
 ```typescript
 // @noErrorValidation
 
-const optimizedTx = await toolbox.buildTransaction({
+const optimizedTx = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.Arbitrum, value: "0.1" }),
-  gasLimit: "21000",
-  maxFeePerGas: "1000000000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.Arbitrum, value: "0.1" }),
+  gasLimit: 21000n,
+  maxFeePerGas: 1000000000n,
 });
 
-const multicallData = [
-  { target: usdcAddress, callData: balanceOfCallData },
-  { target: arbAddress, callData: balanceOfCallData },
-  { target: wethAddress, callData: balanceOfCallData },
-];
-
-const results = await toolbox.multicall(multicallData);
+const fee = await toolbox.estimateTransactionFee({
+  ...optimizedTx,
+  chain: Chain.Arbitrum,
+  feeOption: FeeOption.Average,
+});
 ```
 
 ### Transaction Bundling
 
 ```typescript
 // @noErrorValidation
+import { getProvider } from "@tcswap/toolboxes/evm";
 
 const bundledOperations = async () => {
   const approveTx = await toolbox.approve({
-    contractAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    assetAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     spenderAddress: "0x...",
-    amount: "1000000000",
+    amount: 1000000000n,
   });
 
-  await toolbox.waitForTransaction(approveTx);
+  const provider = await getProvider(Chain.Arbitrum);
+  await provider.waitForTransaction(approveTx);
 
   const swapTx = await toolbox.call({
     contractAddress: "0x...",
@@ -506,7 +491,7 @@ const bundledOperations = async () => {
      funcParams: [
        /* many parameters */
      ],
-     gasLimit: "1000000",
+     txOverrides: { gasLimit: 1000000n },
    });
    ```
 
@@ -520,15 +505,7 @@ const bundledOperations = async () => {
    };
    ```
 
-3. **Monitor Bridge Status**:
-
-   ```typescript
-   const bridgeStatus = await toolbox.getBridgeStatus(l1TxHash);
-   if (bridgeStatus.status === "confirmed") {
-   }
-   ```
-
-4. **Optimize for Fast Settlement**:
+3. **Optimize for Fast Settlement**:
 
    ```typescript
    const fastTx = await uSwap.transfer({
@@ -537,7 +514,8 @@ const bundledOperations = async () => {
      feeOptionKey: FeeOption.Fastest,
    });
 
-   const receipt = await toolbox.waitForTransaction(fastTx);
+   const provider = await getProvider(Chain.Arbitrum);
+   const receipt = await provider.waitForTransaction(fastTx);
    ```
 
 ## Popular Arbitrum Protocols
@@ -588,31 +566,22 @@ const radiantSupply = await toolbox.call({
 1. **"Transaction underpriced"** - Even on L2:
 
    ```typescript
-   const txParams = await toolbox.buildTransaction({
+   const txParams = await toolbox.createTransaction({
      recipient: "0x...",
-     amount: AssetValue.from({ chain: Chain.Arbitrum, value: "0.1" }),
-     maxFeePerGas: "2000000000",
+     sender: "0x...",
+     assetValue: AssetValue.from({ chain: Chain.Arbitrum, value: "0.1" }),
+     maxFeePerGas: 2000000000n,
    });
    ```
 
-2. **Bridge delays**:
-
-   ```typescript
-   const checkBridgeStatus = async (l1TxHash: string) => {
-     const status = await toolbox.getBridgeDeposit(l1TxHash);
-     console.log(`Bridge status: ${status.status}`);
-     return status.status === "EXECUTED";
-   };
-   ```
-
-3. **RPC rate limiting**:
+2. **RPC rate limiting**:
 
    ```typescript
 
    const providers = [
-     "https:
-     "https:
-     "https:
+     "https://arb1.arbitrum.io/rpc",
+     "https://arbitrum.blockpi.network/v1/rpc/public",
+     "https://arbitrum-one-rpc.publicnode.com",
    ];
 
    USwapConfig.setRpcUrl(Chain.Arbitrum, providers);
@@ -622,22 +591,18 @@ const radiantSupply = await toolbox.call({
 
 ### Core Methods (Same as Ethereum)
 
-- `getBalance()` - Get ETH or token balance
+- `getBalance()` - Get ETH and token balances (`AssetValue[]`)
 - `transfer()` - Send ETH or tokens
-- `buildTransaction()` - Construct transaction parameters
+- `createTransaction()` - Construct transaction parameters
+- `sendTransaction()` - Sign and broadcast a transaction object
 - `call()` - Execute smart contract functions
 - `estimateCall()` - Estimate gas for contract calls
 
-### Layer 2 Specific Methods
-
-- `getBridgeStatus()` - Check bridge deposit status
-- `getBridgeDeposit()` - Get bridge transaction details
-- `estimateL1GasCost()` - Estimate L1 data cost portion
-
 ### Gas Management
 
-- `getGasPrices()` - Get current L2 gas prices
-- `estimateGas()` - Estimate gas with L2 optimizations
+- `estimateGasPrices()` - Get current L2 gas prices per fee option
+- `estimateGasLimit()` - Estimate gas limit for a transfer
+- `estimateTransactionFee()` - Estimate the total fee for a transaction
 
 ## Next Steps
 

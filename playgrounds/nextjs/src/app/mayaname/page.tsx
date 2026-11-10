@@ -5,13 +5,13 @@
 "use client";
 
 import { AssetValue, Chain, getMAYANameCost } from "@tcswap/helpers";
-import { useSwapKit } from "@tcswap/ui/react";
+import { useUSwap } from "@tcswap/ui/react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 
 export default function Send() {
-  const { swapKit, checkIfChainConnected } = useSwapKit();
-  const name = "TEST_OF_SWAPKIT";
+  const { uSwap, checkIfChainConnected } = useUSwap();
+  const name = "TEST_OF_TCSWAP";
 
   return (
     <div>
@@ -24,8 +24,8 @@ export default function Send() {
         <CardContent className="mt-3">
           <Button
             onClick={() => {
-              if (!swapKit) {
-                alert("Please init swapKit");
+              if (!uSwap) {
+                alert("Please init TCSwap");
                 return;
               }
               if (!checkIfChainConnected(Chain.Maya)) {

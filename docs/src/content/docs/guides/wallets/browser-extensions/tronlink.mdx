@@ -1,0 +1,46 @@
+---
+title: TronLink Wallet Integration
+description: Connect the TronLink browser extension to TCSwap for Tron
+---
+
+The TronLink browser extension is supported through `tronlinkWallet`, which adds the `connectTronLink` method to your TCSwap client (`WalletOption.TRONLINK`).
+
+## Supported Chains
+
+- **Tron** only (`TRONLINK_SUPPORTED_CHAINS`). Calling `connectTronLink` without `Chain.Tron` throws.
+
+## Installation and Import
+
+```bash
+bun add @tcswap/sdk
+```
+
+```ts twoslash
+import { Chain, USwap, tronlinkWallet } from "@tcswap/sdk";
+```
+
+## Connecting
+
+```ts twoslash
+import { AssetValue, Chain, USwap, tronlinkWallet } from "@tcswap/sdk";
+
+const uSwap = USwap({
+  config: { apiKeys: { uSwap: "your-api-key" } },
+  wallets: { ...tronlinkWallet },
+});
+
+await uSwap.connectTronLink([Chain.Tron]);
+
+const txHash = await uSwap.transfer({
+  assetValue: AssetValue.from({ asset: "TRON.TRX", value: 10 }),
+  recipient: "TLPwm9iGkMiTUERrQ8KXWCFzPn5Q3wz5jc",
+});
+```
+
+## Notes
+
+- The SDK waits for `window.tronLink` (it also listens for the `tronlink#initialized` event). If TronLink never appears, connecting throws `wallet_provider_not_found`.
+- If TronLink is locked, the SDK requests accounts; a locked wallet that stays locked throws `wallet_tronlink_locked`, and other failures throw `wallet_tronlink_request_accounts_failed`.
+- TronLink must be on mainnet: the selected node must contain `api.trongrid.io`, otherwise connecting throws `wallet_failed_to_add_or_switch_network`.
+- After connecting, switching account or node in TronLink reloads the page (`window.location.reload()`). `disconnect` removes that listener.
+- Transactions are signed with TronLink's `tronWeb.trx.sign`.

@@ -1,0 +1,52 @@
+---
+title: NEAR Wallet Selector Integration
+description: Connect NEAR wallets to TCSwap through NEAR Wallet Selector
+---
+
+NEAR wallets are supported through `walletSelectorWallet`, which adds the `connectWalletSelector` method to your TCSwap client (`WalletOption.WALLET_SELECTOR`). It uses `@near-wallet-selector/core` and shows the `@near-wallet-selector/modal-ui-js` modal so the user can pick a wallet.
+
+## Supported Chains
+
+- **NEAR** only (`WALLET_SELECTOR_SUPPORTED_CHAINS`).
+
+## Installation and Import
+
+```bash
+bun add @tcswap/sdk
+```
+
+You choose which NEAR wallets appear in the modal by passing their Wallet Selector modules, so install the ones you want (for example `@near-wallet-selector/bitget-wallet`).
+
+```ts twoslash
+import { Chain, USwap, walletSelectorWallet } from "@tcswap/sdk";
+```
+
+## Connecting
+
+`connectWalletSelector(chains, walletFactories?)` sets up Wallet Selector on mainnet with the given `WalletModuleFactory[]`. If no account is signed in yet, it opens the modal and waits until the user picks a wallet.
+
+```ts twoslash
+import { Chain, USwap, walletSelectorWallet } from "@tcswap/sdk";
+import { setupBitgetWallet } from "@near-wallet-selector/bitget-wallet";
+
+const uSwap = USwap({
+  config: {
+    apiKeys: { uSwap: "your-api-key" },
+    integrations: { nearWalletSelector: { contractId: "" } },
+  },
+  wallets: { ...walletSelectorWallet },
+});
+
+await uSwap.connectWalletSelector([Chain.Near], [setupBitgetWallet()]);
+
+const accountId = uSwap.getAddress(Chain.Near);
+const balance = await uSwap.getBalance(Chain.Near, true);
+```
+
+## Notes
+
+- The modal is created with `config.integrations.nearWalletSelector.contractId` (empty string by default).
+- If the selected wallet returns no account, connecting throws `wallet_connection_rejected_by_user`; `connectWalletSelector` without `Chain.Near` throws `wallet_chain_not_supported`.
+- The connected chain starts with an empty cached balance; use `getBalance(Chain.Near, true)` to fetch it.
+- `disconnect` signs out of the selected wallet.
+- The package imports `@near-wallet-selector/modal-ui-js/styles.css`, so your bundler must handle CSS imports.

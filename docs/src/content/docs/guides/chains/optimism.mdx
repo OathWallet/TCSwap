@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Optimism Integration
 description: Complete guide to integrating Optimism with TCSwap SDK for Layer 2 scaling and DeFi operations
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem, Code } from "@astrojs/starlight/components";
 
@@ -40,28 +41,26 @@ import { createUSwap, Chain } from '@tcswap/sdk';
 
 const uSwap = createUSwap();
 
-const opWallet = await uSwap.getWallet(Chain.Optimism);
+await uSwap.connectKeystore([Chain.Optimism], "your twelve word mnemonic phrase here");
 
-````
+const opWallet = uSwap.getWalletByChain(Chain.Optimism);
+```
 </TabItem>
 <TabItem label="Standalone Toolbox">
 ```typescript
 // @noErrorValidation
-import { getOptimismToolbox } from '@tcswap/toolboxes/evm';
+import { OPToolbox } from '@tcswap/toolboxes/evm';
 
-
-const opToolbox = await getOptimismToolbox({
+const opToolbox = await OPToolbox({
   phrase: "your twelve word mnemonic phrase here",
-
-  derivationPath: [44, 60, 0, 0, 0]
 });
 
-
-const opToolbox = await getOptimismToolbox({
+// or bring your own ethers signer and provider
+const customOpToolbox = await OPToolbox({
   signer: customOptimismSigner,
   provider: customOptimismProvider
 });
-````
+```
 
 </TabItem>
 </Tabs>
@@ -78,9 +77,9 @@ import { Chain, FeeOption } from "@tcswap/sdk";
 
 await uSwap.connectKeystore([Chain.Optimism], "your mnemonic phrase");
 
-await uSwap.connectBrowserWallet(Chain.Optimism);
+await uSwap.connectEVMWallet([Chain.Optimism]);
 
-await uSwap.connectWalletConnect([Chain.Optimism]);
+await uSwap.connectWalletconnect([Chain.Optimism]);
 
 await uSwap.connectLedger([Chain.Optimism]);
 ```
@@ -115,9 +114,7 @@ Optimism supports ERC-20 tokens with much lower costs than Ethereum:
 const usdcTransfer = await uSwap.transfer({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
   assetValue: AssetValue.from({
-    chain: Chain.Optimism,
-    symbol: "USDC",
-    address: "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+    asset: "OP.USDC-0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
     value: "100",
   }),
   feeOptionKey: FeeOption.Average,
@@ -126,14 +123,12 @@ const usdcTransfer = await uSwap.transfer({
 const opTransfer = await uSwap.transfer({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
   assetValue: AssetValue.from({
-    chain: Chain.Optimism,
-    symbol: "OP",
-    address: "0x4200000000000000000000000000000000000042",
+    asset: "OP.OP-0x4200000000000000000000000000000000000042",
     value: "10",
   }),
 });
 
-const toolbox = await getOptimismToolbox({ phrase: "..." });
+const toolbox = await OPToolbox({ phrase: "..." });
 
 const batchOptimismTransfers = async () => {
   const optimismTokens = [
@@ -174,6 +169,7 @@ Optimism contracts execute quickly with low gas costs:
 
 ```typescript
 // @noErrorValidation
+import { erc20ABI } from "@tcswap/helpers/contracts";
 
 const veloBalance = await toolbox.call({
   contractAddress: "0x3c8B650257cFb5f272f799F5e2b4e65093a11a05",
@@ -188,10 +184,10 @@ const snxTransfer = await toolbox.call({
   funcName: "transfer",
   funcParams: [
     "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-    "1000000000000000000",
+    1000000000000000000n,
   ],
   txOverrides: {
-    gasLimit: "65000",
+    gasLimit: 65000n,
   },
 });
 
@@ -212,8 +208,8 @@ const velodromeSwap = await toolbox.call({
     Date.now() + 600000,
   ],
   txOverrides: {
-    value: "100000000000000000",
-    gasLimit: "300000",
+    value: 100000000000000000n,
+    gasLimit: 300000n,
   },
 });
 ```
@@ -225,26 +221,32 @@ Optimism uses ETH for gas with optimized L2 costs:
 ```typescript
 // @noErrorValidation
 
-const gasInfo = await toolbox.getGasPrices();
+const gasInfo = await toolbox.estimateGasPrices();
 console.log({
-  slow: gasInfo.average,
-  standard: gasInfo.fast,
-  fast: gasInfo.fastest,
+  average: gasInfo.average,
+  fast: gasInfo.fast,
+  fastest: gasInfo.fastest,
 });
 
-const txParams = await toolbox.buildTransaction({
+const txParams = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.Optimism, value: "0.1" }),
-  gasLimit: "21000",
-  gasPrice: "1000000000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.Optimism, value: "0.1" }),
+  gasLimit: 21000n,
+  gasPrice: 1000000000n,
 });
 
-const eip1559Tx = await toolbox.buildTransaction({
+const eip1559Tx = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.Optimism, value: "0.1" }),
-  maxFeePerGas: "2000000000",
-  maxPriorityFeePerGas: "100000000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.Optimism, value: "0.1" }),
+  maxFeePerGas: 2000000000n,
+  maxPriorityFeePerGas: 100000000n,
 });
+
+// OP Stack transactions also pay an L1 data fee
+const l1GasPrice = await toolbox.getL1GasPrice();
+const l1DataFee = await toolbox.estimateL1GasCost(eip1559Tx);
 ```
 
 ## Cross-Chain Operations
@@ -253,13 +255,14 @@ const eip1559Tx = await toolbox.buildTransaction({
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const bridgeQuote = await uSwap.getQuote({
+const bridgeQuote = await USwapApi.getSwapQuote({
   sellAsset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   sellAmount: "1000",
   buyAsset: "OP.USDC-0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
-  senderAddress: uSwap.getAddress(Chain.Ethereum),
-  recipientAddress: uSwap.getAddress(Chain.Optimism),
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+  destinationAddress: uSwap.getAddress(Chain.Optimism),
 });
 
 const bridgeTx = await uSwap.swap({
@@ -267,12 +270,12 @@ const bridgeTx = await uSwap.swap({
   feeOptionKey: FeeOption.Fast,
 });
 
-const ethToOpBridge = await uSwap.getQuote({
+const ethToOpBridge = await USwapApi.getSwapQuote({
   sellAsset: "ETH.ETH",
   sellAmount: "0.5",
   buyAsset: "OP.ETH",
-  senderAddress: uSwap.getAddress(Chain.Ethereum),
-  recipientAddress: uSwap.getAddress(Chain.Optimism),
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+  destinationAddress: uSwap.getAddress(Chain.Optimism),
 });
 ```
 
@@ -280,13 +283,14 @@ const ethToOpBridge = await uSwap.getQuote({
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const opToBtcQuote = await uSwap.getQuote({
+const opToBtcQuote = await USwapApi.getSwapQuote({
   sellAsset: "OP.OP-0x4200000000000000000000000000000000000042",
   sellAmount: "100",
   buyAsset: "BTC.BTC",
-  senderAddress: uSwap.getAddress(Chain.Optimism),
-  recipientAddress: uSwap.getAddress(Chain.Bitcoin),
+  sourceAddress: uSwap.getAddress(Chain.Optimism),
+  destinationAddress: uSwap.getAddress(Chain.Bitcoin),
 });
 
 const crossChainSwap = await uSwap.swap({
@@ -294,12 +298,12 @@ const crossChainSwap = await uSwap.swap({
   feeOptionKey: FeeOption.Fast,
 });
 
-const usdcToRuneQuote = await uSwap.getQuote({
+const usdcToRuneQuote = await USwapApi.getSwapQuote({
   sellAsset: "OP.USDC-0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
   sellAmount: "500",
   buyAsset: "THOR.RUNE",
-  senderAddress: uSwap.getAddress(Chain.Optimism),
-  recipientAddress: uSwap.getAddress(Chain.THORChain),
+  sourceAddress: uSwap.getAddress(Chain.Optimism),
+  destinationAddress: uSwap.getAddress(Chain.THORChain),
 });
 ```
 
@@ -309,32 +313,32 @@ Access native Optimism DEXs for optimal liquidity:
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const velodromeQuote = await uSwap.getQuote({
+const velodromeQuote = await USwapApi.getSwapQuote({
   sellAsset: "OP.ETH",
   sellAmount: "0.1",
   buyAsset: "OP.USDC-0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
-  senderAddress: uSwap.getAddress(Chain.Optimism),
-  recipientAddress: uSwap.getAddress(Chain.Optimism),
-  providers: ["VELODROME"],
+  sourceAddress: uSwap.getAddress(Chain.Optimism),
+  destinationAddress: uSwap.getAddress(Chain.Optimism),
 });
 
-const uniswapQuote = await uSwap.getQuote({
+const uniswapQuote = await USwapApi.getSwapQuote({
   sellAsset: "OP.USDC-0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
   sellAmount: "500",
   buyAsset: "OP.WETH-0x4200000000000000000000000000000000000006",
-  senderAddress: uSwap.getAddress(Chain.Optimism),
-  recipientAddress: uSwap.getAddress(Chain.Optimism),
-  providers: ["UNISWAPV3"],
+  sourceAddress: uSwap.getAddress(Chain.Optimism),
+  destinationAddress: uSwap.getAddress(Chain.Optimism),
+  providers: ["UNISWAP_V3"],
 });
 
-const bestRateQuote = await uSwap.getQuote({
+const bestRateQuote = await USwapApi.getSwapQuote({
   sellAsset: "OP.DAI-0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
   sellAmount: "1000",
   buyAsset: "OP.SNX-0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4",
-  senderAddress: uSwap.getAddress(Chain.Optimism),
-  recipientAddress: uSwap.getAddress(Chain.Optimism),
-  providers: ["VELODROME", "UNISWAPV3"],
+  sourceAddress: uSwap.getAddress(Chain.Optimism),
+  destinationAddress: uSwap.getAddress(Chain.Optimism),
+  providers: ["UNISWAP_V3"],
 });
 
 const dexSwap = await uSwap.swap({
@@ -365,11 +369,14 @@ const getOptimismPortfolio = async () => {
   const balances = {};
   const address = uSwap.getAddress(Chain.Optimism);
 
-  balances.ETH = await toolbox.getBalance(address);
+  // Returns the native balance plus every token the address holds as AssetValue[]
+  const assetValues = await toolbox.getBalance(address);
 
   for (const [symbol, tokenAddress] of Object.entries(optimismTokens)) {
-    const balance = await toolbox.getBalance(address, tokenAddress);
-    balances[symbol] = balance.toString();
+    const balance = assetValues.find(
+      (asset) => asset.address?.toLowerCase() === tokenAddress.toLowerCase()
+    );
+    balances[symbol] = balance?.toSignificant(6) ?? "0";
   }
 
   return balances;
@@ -474,16 +481,16 @@ import { USwapConfig } from '@tcswap/sdk';
 
 
 USwapConfig.setRpcUrl(Chain.Optimism, [
-  "https:
-  "https:
-  "https:
+  "https://mainnet.optimism.io",
+  "https://optimism.llamarpc.com",
+  "https://1rpc.io/op",
 ]);
 
 
 import { JsonRpcProvider } from 'ethers';
 
-const optimismProvider = new JsonRpcProvider("https:
-const toolbox = await getOptimismToolbox({
+const optimismProvider = new JsonRpcProvider("https://mainnet.optimism.io");
+const toolbox = await OPToolbox({
   phrase: "your mnemonic",
   provider: optimismProvider
 });
@@ -494,8 +501,7 @@ const toolbox = await getOptimismToolbox({
 ```typescript
 // @noErrorValidation
 
-USwapConfig.setRpcUrl(Chain.Optimism, "https:
-USwapConfig.setEnv('isMainnet', false);
+USwapConfig.setRpcUrl(Chain.Optimism, ["https://mainnet.optimism.io"]);
 
 
 const testnetTokens = {
@@ -518,18 +524,18 @@ try {
   });
 } catch (error) {
   if (error instanceof USwapError) {
-    switch (error.code) {
-      case "toolbox_evm_insufficient_funds":
-        console.error("Insufficient ETH for gas on Optimism");
+    switch (error.message.split(":")[0]) {
+      case "toolbox_evm_error_estimating_gas_limit":
+        console.error("Gas estimation failed - check ETH balance for gas");
         break;
-      case "network_optimism_sequencer_down":
-        console.error("Optimism sequencer is down, try again later");
+      case "toolbox_evm_gas_estimation_error":
+        console.error("Could not fetch gas prices, try again");
         break;
-      case "toolbox_evm_transaction_failed":
+      case "toolbox_evm_error_sending_transaction":
         console.error("Transaction failed:", error.cause);
         break;
-      case "bridge_optimism_withdrawal_delay":
-        console.error("Optimism withdrawal has 7-day delay");
+      case "core_wallet_connection_not_found":
+        console.error("Wallet is not connected for this chain");
         break;
       default:
         console.error("Unknown error:", error);
@@ -545,11 +551,12 @@ try {
 ```typescript
 // @noErrorValidation
 
-const optimizedTx = await toolbox.buildTransaction({
+const optimizedTx = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.Optimism, value: "0.1" }),
-  gasLimit: "21000",
-  gasPrice: "1000000000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.Optimism, value: "0.1" }),
+  gasLimit: 21000n,
+  gasPrice: 1000000000n,
 });
 
 const complexTx = await toolbox.call({
@@ -559,7 +566,7 @@ const complexTx = await toolbox.call({
   funcParams: [
     /* complex parameters */
   ],
-  gasLimit: "1000000",
+  txOverrides: { gasLimit: 1000000n },
 });
 ```
 
@@ -579,10 +586,8 @@ const batchOperations = async () => {
 
   for (const tokenAddress of tokens) {
     const approve = toolbox.approve({
-      contractAddress: tokenAddress,
+      assetAddress: tokenAddress,
       spenderAddress: "0x9c12939390052919aF3155f41Bf4160Fd3666A6f",
-      amount:
-        "115792089237316195423570985008687907853269984665640564039457584007913129639935",
     });
     operations.push(approve);
   }
@@ -604,20 +609,21 @@ const batchOperations = async () => {
      funcParams: [
        /* many parameters */
      ],
-     gasLimit: "2000000",
+     txOverrides: { gasLimit: 2000000n },
    });
    ```
 
 2. **Use Native Optimism Infrastructure**:
 
    ```typescript
-   const veloQuote = await uSwap.getQuote({
+   import { USwapApi } from "@tcswap/sdk";
+
+   const veloQuote = await USwapApi.getSwapQuote({
      sellAsset: "OP.ETH",
      sellAmount: "1",
      buyAsset: "OP.USDC-0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
-     senderAddress: uSwap.getAddress(Chain.Optimism),
-     recipientAddress: uSwap.getAddress(Chain.Optimism),
-     providers: ["VELODROME"],
+     sourceAddress: uSwap.getAddress(Chain.Optimism),
+     destinationAddress: uSwap.getAddress(Chain.Optimism),
    });
    ```
 
@@ -631,9 +637,12 @@ const batchOperations = async () => {
 
 4. **Monitor Sequencer Status**:
    ```typescript
+   import { getProvider } from "@tcswap/toolboxes/evm";
+
    const checkSequencer = async () => {
      try {
-       const blockNumber = await toolbox.getBlockNumber();
+       const provider = await getProvider(Chain.Optimism);
+       const blockNumber = await provider.getBlockNumber();
        console.log("Sequencer is operational:", blockNumber);
        return true;
      } catch (error) {
@@ -647,17 +656,7 @@ const batchOperations = async () => {
 
 ### Common Issues
 
-1. **Bridge deposit delays**:
-
-   ```typescript
-   const checkBridgeStatus = async (l1TxHash: string) => {
-     const status = await toolbox.getBridgeDeposit(l1TxHash);
-     console.log(`Bridge status: ${status.status}`);
-     return status.status === "RELAYED";
-   };
-   ```
-
-2. **Withdrawal complexity**:
+1. **Withdrawal complexity**:
 
    ```typescript
    const initiateWithdrawal = async () => {
@@ -665,7 +664,7 @@ const batchOperations = async () => {
    };
    ```
 
-3. **Gas estimation edge cases**:
+2. **Gas estimation edge cases**:
 
    ```typescript
    const safeGasLimit = await toolbox.estimateCall({
@@ -684,23 +683,24 @@ const batchOperations = async () => {
 
 ### Core Methods (Same as Ethereum)
 
-- `getBalance()` - Get ETH or token balance
+- `getBalance()` - Get ETH and token balances (`AssetValue[]`)
 - `transfer()` - Send ETH or tokens
-- `buildTransaction()` - Construct transaction parameters
+- `createTransaction()` - Construct transaction parameters
+- `sendTransaction()` - Sign and broadcast a transaction object
 - `call()` - Execute smart contract functions
 - `estimateCall()` - Estimate gas for contract calls
 
 ### Gas Management
 
-- `getGasPrices()` - Get current L2 gas prices
-- `estimateGas()` - Estimate gas with L2 optimizations
-- `waitForTransaction()` - Wait for ~2 second confirmation
+- `estimateGasPrices()` - Get current gas prices per fee option
+- `estimateGasLimit()` - Estimate gas limit for a transfer
+- `estimateTransactionFee()` - Estimate the total fee for a transaction
 
 ### Optimism Specific
 
-- `getBridgeDeposit()` - Check bridge deposit status
-- `getSequencerStatus()` - Monitor sequencer health
-- `multicall()` - Batch contract reads efficiently
+- `getL1GasPrice()` - Get the current L1 base fee from the gas price oracle
+- `estimateL1Gas()` - Estimate L1 data gas for a transaction
+- `estimateL1GasCost()` - Estimate the L1 data fee for a transaction
 
 ## Next Steps
 

@@ -16,7 +16,7 @@ export default function SwapPage() {
   const defaultValues =
     typeof localStorage !== "undefined" && localStorage.getItem("formValues")
       ? JSON.parse(localStorage.getItem("formValues") || "")
-      : { apiKey: "16621042-80db-41ed-83be-3f0349e0d703", apiUrl: "https://dev-api.uswap.dev" };
+      : { apiKey: "", apiUrl: "https://api.thorchain.org/v1" };
 
   const { watch, control } = useForm<WidgetConfiguratorFormValues>({ defaultValues });
   const formValues = watch();
@@ -59,8 +59,7 @@ export default function SwapPage() {
             integrations: {
               keepKey: {
                 basePath: "http://localhost:1646/spec/swagger.json",
-                imageUrl:
-                  "https://raw.githubusercontent.com/horizontalsystems/USwap/refs/heads/develop/docs/src/assets/logo-black.png",
+                imageUrl: "",
                 name: "TCSwap",
                 url: "http://localhost:1646",
               },

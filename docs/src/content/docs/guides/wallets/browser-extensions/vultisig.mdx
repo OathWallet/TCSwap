@@ -1,0 +1,46 @@
+---
+title: Vultisig Wallet Integration
+description: Connect the Vultisig browser extension to TCSwap for EVM, UTXO, Cosmos, THORChain, Maya, Solana, Polkadot and Ripple
+---
+
+The Vultisig browser extension is supported through `vultisigWallet`, which adds the `connectVultisig` method to your TCSwap client (`WalletOption.VULTISIG`).
+
+## Supported Chains
+
+`connectVultisig` accepts the following chains (`VULTISIG_SUPPORTED_CHAINS`):
+
+- **EVM**: Arbitrum, Avalanche, Base, BNB Smart Chain, Ethereum, Optimism, Polygon, X Layer
+- **UTXO**: Bitcoin, Bitcoin Cash, Dash, Dogecoin, Litecoin, Zcash
+- **Cosmos ecosystem**: Cosmos Hub, Kujira, THORChain, Maya
+- **Other**: Solana, Polkadot, Ripple (XRP)
+
+## Installation and Import
+
+```bash
+bun add @tcswap/sdk
+```
+
+```ts twoslash
+import { Chain, USwap, vultisigWallet } from "@tcswap/sdk";
+```
+
+## Connecting
+
+```ts twoslash
+import { Chain, USwap, vultisigWallet } from "@tcswap/sdk";
+
+const uSwap = USwap({
+  config: { apiKeys: { uSwap: "your-api-key" } },
+  wallets: { ...vultisigWallet },
+});
+
+await uSwap.connectVultisig([Chain.Bitcoin, Chain.Ethereum, Chain.THORChain, Chain.Solana]);
+
+const thorAddress = uSwap.getAddress(Chain.THORChain);
+```
+
+## Notes
+
+- Everything goes through the `window.vultisig` namespace (`ethereum`, `cosmos`, `bitcoin`, `bitcoincash`, `dash`, `dogecoin`, `litecoin`, `zcash`, `solana`, `thorchain`, `mayachain`, `polkadot`, `ripple`). Without it, connecting throws `wallet_vultisig_not_found`.
+- Cosmos Hub and Kujira share a single provider, so they are connected one after the other instead of in parallel.
+- UTXO, Cosmos Hub, Kujira, THORChain, Maya, Polkadot and Ripple transfers are signed and sent by the extension. The THORChain and Maya wallets also expose `deposit`.

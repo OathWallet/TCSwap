@@ -34,7 +34,7 @@ export function WidgetConfigurator({ control }: { control: Control<WidgetConfigu
             control={control}
             label={
               <div className="flex items-center gap-2">
-                <span>SwapKit API Endpoint URL</span>
+                <span>TCSwap API Endpoint URL</span>
 
                 <Button className="ml-auto" onClick={() => setIsAdvancedVisible((val) => !val)} variant="link">
                   Advanced
@@ -42,7 +42,7 @@ export function WidgetConfigurator({ control }: { control: Control<WidgetConfigu
               </div>
             }
             name="apiUrl"
-            placeholder="https://api.uswap.dev"
+            placeholder="https://api.thorchain.org/v1"
           />
 
           {isAdvancedVisible && (
@@ -50,14 +50,14 @@ export function WidgetConfigurator({ control }: { control: Control<WidgetConfigu
               <CardContent className="!py-2 !px-4">
                 <InputField
                   control={control}
-                  label="SwapKit API URL for /quote"
+                  label="TCSwap API URL for /quote"
                   name="apiUrlQuote"
                   placeholder={apiUrl}
                 />
 
                 <InputField
                   control={control}
-                  label="SwapKit API URL for /swap"
+                  label="TCSwap API URL for /swap"
                   name="apiUrlSwap"
                   placeholder={apiUrl}
                 />
@@ -72,14 +72,14 @@ export function WidgetConfigurator({ control }: { control: Control<WidgetConfigu
                 Don't have an API key yet?{" "}
                 <a
                   className="font-medium text-primary-foreground hover:underline"
-                  href="https://uswap.dev/contact/"
+                  href="https://affiliate.thorchain.org"
                   rel="noopener noreferrer"
                   target="_blank">
                   Get your API key
                 </a>
               </>
             }
-            label="SwapKit API key"
+            label="TCSwap API key"
             name="apiKey"
             placeholder="4531f781-9ff9-4a3f-933f-ce992cc265c1"
           />

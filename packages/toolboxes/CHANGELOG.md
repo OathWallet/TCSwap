@@ -502,7 +502,7 @@
 
 ### Patch Changes
 
-- [#1490](https://github.com/horizontalsystems/USwap/pull/1490) [`69ca725`](https://github.com/horizontalsystems/USwap/commit/69ca725828d4adf996d627e494c560a71fdefc4b) Thanks [@towanTG](https://github.com/towanTG)! - Uses SwapKit Api for Near balance fetching
+- [#1490](https://github.com/horizontalsystems/USwap/pull/1490) [`69ca725`](https://github.com/horizontalsystems/USwap/commit/69ca725828d4adf996d627e494c560a71fdefc4b) Thanks [@towanTG](https://github.com/towanTG)! - Uses the swap API for Near balance fetching
 
 - Updated dependencies []:
   - @tcswap/helpers@4.0.18

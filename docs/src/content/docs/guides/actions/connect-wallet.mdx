@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Connecting Wallets
 description: How to connect different types of wallets with TCSwap
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import WalletConnectionDemo from "../../../../components/WalletConnectionDemo.astro";
 import TryItYourself from "../../../../components/TryItYourself.astro";
@@ -70,13 +71,8 @@ const uSwap = createUSwap({
 ### Granular Approach
 
 ```ts twoslash
-import {
-  Chain,
-  USwap,
-  keystoreWallet,
-  decryptFromKeystore,
-  type Keystore,
-} from "@tcswap/sdk";
+import { Chain, USwap, keystoreWallet } from "@tcswap/sdk";
+import { decryptFromKeystore, type Keystore } from "@tcswap/wallets/keystore";
 
 const uSwap = USwap({
   wallets: { ...keystoreWallet },
@@ -105,6 +101,9 @@ async function connectWithKeystore(
   }
 }
 
+declare const keystoreFile: Keystore;
+declare const password: string;
+
 const chains = [Chain.Ethereum, Chain.Bitcoin, Chain.Ripple];
 await connectWithKeystore(keystoreFile, password, chains);
 ```
@@ -112,12 +111,8 @@ await connectWithKeystore(keystoreFile, password, chains);
 ### All-in-one Approach
 
 ```ts twoslash
-import {
-  Chain,
-  createUSwap,
-  decryptFromKeystore,
-  type Keystore,
-} from "@tcswap/sdk";
+import { Chain, createUSwap } from "@tcswap/sdk";
+import { decryptFromKeystore, type Keystore } from "@tcswap/wallets/keystore";
 
 const uSwap = createUSwap();
 
@@ -149,9 +144,10 @@ const uSwap = USwap({
   wallets: { ...ledgerWallet },
 });
 
-async function connectLedger(chains: Chain[]) {
+// connectLedger connects a single chain per call (the first supported chain in the list)
+async function connectLedger() {
   try {
-    await uSwap.connectLedger(chains);
+    await uSwap.connectLedger([Chain.Ethereum]);
 
     const ethAddress = uSwap.getAddress(Chain.Ethereum);
 
@@ -176,7 +172,8 @@ const uSwap = USwap({
   wallets: { ...trezorWallet },
 });
 
-async function connectTrezor(chains: Chain[]) {
+// connectTrezor connects a single chain per call and requires a derivation path
+async function connectTrezor() {
   try {
     await uSwap.connectTrezor([Chain.Bitcoin], NetworkDerivationPath.BTC);
 
@@ -238,7 +235,8 @@ async function connectKeplr() {
 ### Cosmostation (Cosmos) Wallet
 
 ```ts twoslash
-import { Chain, USwap, cosmostationWallet } from "@tcswap/sdk";
+import { Chain, USwap } from "@tcswap/sdk";
+import { cosmostationWallet } from "@tcswap/wallets/cosmostation";
 
 const uSwap = USwap({
   wallets: { ...cosmostationWallet },

@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Production Best Practices
 description: Security, performance, and deployment guidelines for TCSwap applications
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
 
@@ -22,15 +23,16 @@ const quote = await fetch("/api/swap-quote", {
   body: JSON.stringify(quoteParams),
 }).then((r) => r.json());
 
+import { USwapConfig } from "@tcswap/helpers";
 import { USwapApi } from "@tcswap/helpers/api";
+
+// Server only: the key is sent as the `x-api-key` header
+USwapConfig.setApiKey("uSwap", process.env.USWAP_API_KEY);
 
 export async function POST(request: Request) {
   const params = await request.json();
 
-  const quote = await USwapApi.getSwapQuote({
-    ...params,
-    apiKey: process.env.USWAP_API_KEY,
-  });
+  const quote = await USwapApi.getSwapQuote(params);
 
   return Response.json(quote);
 }
@@ -42,13 +44,13 @@ Always use secure wallet connections instead of handling private keys directly:
 
 ```typescript
 // @noErrorValidation
-import { createUSwap, Chain } from "@tcswap/sdk";
+import { createUSwap, Chain, NetworkDerivationPath } from "@tcswap/sdk";
 
 const uSwap = createUSwap();
 
 await uSwap.connectEVMWallet([Chain.Ethereum]);
 await uSwap.connectLedger([Chain.Bitcoin]);
-await uSwap.connectTrezor([Chain.Bitcoin]);
+await uSwap.connectTrezor([Chain.Bitcoin], NetworkDerivationPath[Chain.Bitcoin]);
 ```
 
 ### Input Validation
@@ -57,27 +59,30 @@ Always validate user inputs:
 
 ```typescript
 // @noErrorValidation
-import { createUSwap, USwapError } from "@tcswap/sdk";
+import { getAddressValidator, USwapError } from "@tcswap/sdk";
 
-const uSwap = createUSwap();
+const validateAddress = await getAddressValidator();
 
 function validateSwapInput(params: any): void {
-  if (!uSwap.validateAddress(params.recipient, params.chain)) {
-    throw new USwapError("core_swap_invalid_params", {
-      message: "Invalid recipient address",
+  if (!validateAddress({ address: params.recipient, chain: params.chain })) {
+    throw new USwapError({
+      errorKey: "core_swap_invalid_params",
+      info: { message: "Invalid recipient address" },
     });
   }
 
   const amount = Number(params.amount);
   if (isNaN(amount) || amount <= 0) {
-    throw new USwapError("core_swap_invalid_params", {
-      message: "Invalid amount",
+    throw new USwapError({
+      errorKey: "core_swap_invalid_params",
+      info: { message: "Invalid amount" },
     });
   }
 
   if (params.slippage < 0 || params.slippage > 50) {
-    throw new USwapError("core_swap_invalid_params", {
-      message: "Slippage must be between 0 and 50%",
+    throw new USwapError({
+      errorKey: "core_swap_invalid_params",
+      info: { message: "Slippage must be between 0 and 50%" },
     });
   }
 }
@@ -123,17 +128,20 @@ import { Chain } from "@tcswap/sdk";
 
 async function getToolboxForChain(chain: Chain) {
   switch (chain) {
-    case Chain.Ethereum:
-      const { getEvmToolbox } = await import("@tcswap/sdk");
+    case Chain.Ethereum: {
+      const { getEvmToolbox } = await import("@tcswap/toolboxes/evm");
       return getEvmToolbox(chain);
+    }
 
-    case Chain.Bitcoin:
-      const { getUtxoToolbox } = await import("@tcswap/sdk");
+    case Chain.Bitcoin: {
+      const { getUtxoToolbox } = await import("@tcswap/toolboxes/utxo");
       return getUtxoToolbox(chain);
+    }
 
-    default:
-      const { getToolbox } = await import("@tcswap/sdk");
+    default: {
+      const { getToolbox } = await import("@tcswap/toolboxes");
       return getToolbox(chain);
+    }
   }
 }
 ```
@@ -174,7 +182,7 @@ const cache = new USwapCache();
 
 const price = await cache.get(`price_${asset}`, "price", async () => {
   const { USwapApi } = await import("@tcswap/helpers/api");
-  return USwapApi.getPrice(asset);
+  return USwapApi.getPrice({ tokens: [{ identifier: asset }], metadata: false });
 });
 ```
 
@@ -204,22 +212,27 @@ Handle all error scenarios gracefully:
 
 ```typescript
 // @noErrorValidation
-import { USwapError } from "@tcswap/sdk";
+import { USwapError, type QuoteResponseRoute } from "@tcswap/sdk";
 
-async function executeSwap(route: SwapRoute) {
+async function executeSwap(route: QuoteResponseRoute) {
   try {
     const txHash = await uSwap.swap({ route });
     return { success: true, txHash };
   } catch (error) {
     if (error instanceof USwapError) {
-      switch (error.code) {
-        case "wallet_not_connected":
+      // error.message starts with the error key (followed by ": {info}" when present)
+      const [errorKey] = error.message.split(":");
+
+      switch (errorKey) {
+        case "core_wallet_connection_not_found":
           return { success: false, error: "Please connect your wallet" };
 
-        case "insufficient_balance":
+        case "toolbox_utxo_insufficient_balance":
+        case "core_transaction_deposit_insufficient_funds_error":
           return { success: false, error: "Insufficient balance" };
 
-        case "user_rejected":
+        case "core_transaction_user_rejected":
+        case "wallet_connection_rejected_by_user":
           return { success: false, error: "Transaction cancelled" };
 
         default:
@@ -257,7 +270,10 @@ async function withRetry<T>(
     } catch (error) {
       lastError = error as Error;
 
-      if (error instanceof USwapError && error.code === "user_rejected") {
+      if (
+        error instanceof USwapError &&
+        error.message.startsWith("core_transaction_user_rejected")
+      ) {
         throw error;
       }
 
@@ -281,7 +297,7 @@ Provide clear feedback during operations:
 
 ```typescript
 // @noErrorValidation
-import { USwapApi } from "@tcswap/sdk";
+import { USwapApi, type AssetValue, type QuoteRequest } from "@tcswap/sdk";
 
 interface SwapState {
   status: "idle" | "quoting" | "approving" | "swapping" | "success" | "error";
@@ -289,18 +305,29 @@ interface SwapState {
   txHash?: string;
 }
 
-async function performSwap(params: SwapParams) {
+async function performSwap(params: QuoteRequest, assetValue: AssetValue) {
   const setState = (update: Partial<SwapState>) => {};
 
   try {
     setState({ status: "quoting", message: "Getting best price..." });
     const quote = await USwapApi.getSwapQuote(params);
 
-    setState({ status: "approving", message: "Approving tokens..." });
-    await uSwap.approveAssetValue(assetValue);
+    const route = quote.routes[0];
+
+    // Spender: the contract the route's EVM tx calls, or the router (targetAddress)
+    const spender =
+      route.tx && typeof route.tx === "object" && "to" in route.tx
+        ? route.tx.to
+        : route.targetAddress;
+
+    if (spender) {
+      setState({ status: "approving", message: "Approving tokens..." });
+      // Resolves immediately for native gas assets and non-EVM chains
+      await uSwap.approveAssetValue(assetValue, spender);
+    }
 
     setState({ status: "swapping", message: "Executing swap..." });
-    const txHash = await uSwap.swap({ route: quote.routes[0] });
+    const txHash = await uSwap.swap({ route });
 
     setState({ status: "success", txHash });
   } catch (error) {
@@ -318,11 +345,11 @@ Track transaction status for better UX:
 
 ```typescript
 // @noErrorValidation
-import { Chain, USwapApi } from "@tcswap/sdk";
+import { ChainId, USwapApi } from "@tcswap/sdk";
 
 async function trackTransaction(
-  txHash: string,
-  chain: Chain,
+  hash: string,
+  chainId: ChainId,
   onUpdate: (status: string) => void
 ) {
   let attempts = 0;
@@ -330,12 +357,12 @@ async function trackTransaction(
 
   while (attempts < maxAttempts) {
     try {
-      const status = await USwapApi.getTrackerDetails({ txHash, chain });
+      const details = await USwapApi.getTrackerDetails({ hash, chainId });
 
-      onUpdate(status.status);
+      onUpdate(details.status);
 
-      if (status.status === "completed" || status.status === "failed") {
-        return status;
+      if (["completed", "refunded", "failed"].includes(details.status)) {
+        return details;
       }
     } catch (error) {}
 
@@ -351,71 +378,49 @@ async function trackTransaction(
 
 ### RPC Failover
 
-Configure multiple RPC endpoints for reliability:
+Configure multiple RPC endpoints for reliability. The first URL is the primary; if it fails a connection test, TCSwap tries the remaining URLs in order:
 
 ```typescript
 // @noErrorValidation
-import { Chain } from '@tcswap/sdk';
+import { Chain, USwapConfig } from "@tcswap/sdk";
 
-const rpcEndpoints = {
-  [Chain.Ethereum]: [
+USwapConfig.setRpcUrl(
+  Chain.Ethereum,
+  [
     process.env.ALCHEMY_ETH_RPC,
     process.env.INFURA_ETH_RPC,
-    'https:
-  ].filter(Boolean),
+    "https://ethereum-rpc.publicnode.com",
+  ].filter(Boolean) as string[]
+);
 
-  [Chain.Avalanche]: [
-    process.env.AVALANCHE_RPC,
-    'https:
-  ].filter(Boolean)
-};
-
-
-async function getRpcUrl(chain: Chain): Promise<string> {
-  const endpoints = rpcEndpoints[chain] || [];
-
-  for (const url of endpoints) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        body: JSON.stringify({ method: 'eth_blockNumber', params: [], id: 1 })
-      });
-
-      if (response.ok) return url;
-    } catch {
-      continue;
-    }
-  }
-
-  throw new Error(`No working RPC for ${chain}`);
-}
+USwapConfig.setRpcUrl(
+  Chain.Avalanche,
+  [process.env.AVALANCHE_RPC, "https://api.avax.network/ext/bc/C/rpc"].filter(
+    Boolean
+  ) as string[]
+);
 ```
 
 ### Gas Price Management
 
-Implement dynamic gas pricing:
+Choose a fee tier per transaction with `feeOptionKey`, and tune the tiers globally with fee multipliers:
 
 ```typescript
 // @noErrorValidation
-import { USwapApi } from "@tcswap/sdk";
+import { FeeOption, USwapConfig } from "@tcswap/sdk";
 
-async function getOptimalGasPrice(
-  chain: Chain,
-  priority: "low" | "medium" | "high"
-) {
-  const gasRates = await USwapApi.getGasRate(chain);
+// Defaults: Average 1.0, Fast 1.5, Fastest 2.0
+USwapConfig.setFeeMultipliers({
+  [FeeOption.Average]: 1.0,
+  [FeeOption.Fast]: 1.25,
+  [FeeOption.Fastest]: 1.75,
+});
 
-  const multipliers = {
-    low: 0.9,
-    medium: 1.0,
-    high: 1.5,
-  };
-
-  return {
-    maxFeePerGas: Math.floor(Number(gasRates) * multipliers[priority]),
-    maxPriorityFeePerGas: Math.floor(Number(gasRates) * 0.1),
-  };
-}
+const txHash = await uSwap.transfer({
+  assetValue,
+  recipient,
+  feeOptionKey: FeeOption.Fast,
+});
 ```
 
 ## Monitoring & Analytics
@@ -526,13 +531,15 @@ if (features.newSwapFlow) {
 
 ```typescript
 // @noErrorValidation
-import { USwapApi, Chain } from "@tcswap/sdk";
+import { USwapApi, USwapConfig, Chain } from "@tcswap/sdk";
 
 async function healthCheck(): Promise<HealthStatus> {
+  const [ethRpcUrl] = USwapConfig.get("rpcUrls")[Chain.Ethereum];
+
   const checks = await Promise.allSettled([
-    USwapApi.getPrice("ETH"),
-    uSwap.validateAddress("0x...", Chain.Ethereum),
-    fetch(rpcUrls[Chain.Ethereum]),
+    USwapApi.getPrice({ tokens: [{ identifier: "ETH.ETH" }], metadata: false }),
+    uSwap.getBalance(Chain.Ethereum),
+    fetch(ethRpcUrl),
   ]);
 
   return {
@@ -545,6 +552,6 @@ async function healthCheck(): Promise<HealthStatus> {
 
 ## Next Steps
 
-- Review [Security considerations](https:
+- Review [Security considerations](/guides/security)
 - Implement [Advanced Features](/guides/advanced-features)
 - Monitor performance with [API Reference](/guides/api-reference)

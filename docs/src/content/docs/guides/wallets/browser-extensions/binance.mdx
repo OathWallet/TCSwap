@@ -1,0 +1,53 @@
+---
+title: Binance Wallet Integration
+description: Connect the Binance Web3 Wallet browser extension to TCSwap for EVM chains, Bitcoin, Solana and Tron
+---
+
+The Binance Web3 Wallet browser extension is supported through `binanceWallet`, which adds the `connectBinance` method to your TCSwap client (`WalletOption.BINANCE`).
+
+## Supported Chains
+
+`connectBinance` accepts the following chains (`BINANCE_SUPPORTED_CHAINS`):
+
+- **EVM**: Arbitrum, Avalanche, Base, BNB Smart Chain, Ethereum, Optimism, Polygon
+- **Bitcoin**
+- **Solana**
+- **Tron**
+
+## Installation and Import
+
+`binanceWallet` is not re-exported from the `@tcswap/sdk` root and is not part of `createUSwap`'s default wallets, so import it from the wallets package:
+
+```bash
+bun add @tcswap/sdk @tcswap/wallets
+```
+
+```ts twoslash
+import { Chain, USwap } from "@tcswap/sdk";
+import { binanceWallet } from "@tcswap/wallets/binance";
+```
+
+## Connecting
+
+```ts twoslash
+import { Chain, USwap } from "@tcswap/sdk";
+import { binanceWallet } from "@tcswap/wallets/binance";
+
+const uSwap = USwap({
+  config: { apiKeys: { uSwap: "your-api-key" } },
+  wallets: { ...binanceWallet },
+});
+
+await uSwap.connectBinance([Chain.Ethereum, Chain.Bitcoin, Chain.Solana, Chain.Tron]);
+
+const ethAddress = uSwap.getAddress(Chain.Ethereum);
+const btcBalance = await uSwap.getBalance(Chain.Bitcoin, true);
+```
+
+## Notes
+
+- Providers are read from the `window.binancew3w` namespace (`ethereum`, `bitcoin`, `solana`, `tron`). For EVM chains the SDK falls back to `window.ethereum` when it is flagged `isBinance`, and then to the EIP-6963 announcement. For Bitcoin it falls back to `window.unisat` when it is flagged `isBinance`.
+- Chains connect independently: a chain that fails is logged with `console.warn` and skipped. `connectBinance` throws only if every requested chain failed.
+- EVM chains share one provider and are connected one after another, so only the first one opens the approval prompt.
+- Errors you may see: `wallet_binance_not_found` (provider missing), `wallet_binance_no_address`, `wallet_chain_not_supported` (none of the requested chains is supported).
+- The provider getters `getBinanceEVMProvider`, `getBinanceBitcoinProvider`, `getBinanceSolanaProvider` and `getBinanceTronProvider` are exported from `@tcswap/wallets/binance` if you need to detect the extension.

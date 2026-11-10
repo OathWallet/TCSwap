@@ -1,48 +1,45 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: WalletConnect Integration
 description: Complete guide to integrating WalletConnect with TCSwap SDK v4 for mobile and desktop wallet support
 ---
 
-WalletConnect is a protocol that enables seamless connection between dApps and mobile wallets through QR code scanning or deep linking. TCSwap SDK v4 provides comprehensive WalletConnect v2 support across multiple blockchain networks, enabling users to connect their favorite mobile wallets to your application.
+{/* Modifications © 2025 Horizontal Systems. */}
+
+WalletConnect is a protocol that enables seamless connection between dApps and mobile wallets through QR code scanning or deep linking. TCSwap supports WalletConnect v2 through `walletconnectWallet`, which exposes the `connectWalletconnect` method and shows the WalletConnect QR modal (`@walletconnect/modal`) when a new pairing is needed.
 
 ## Supported Chains
 
-TCSwap supports WalletConnect for these chains:
+`connectWalletconnect` accepts the following chains (`WC_SUPPORTED_CHAINS`):
 
-- **EVM Compatible**: Ethereum, Arbitrum, Aurora, Avalanche, Base, BinanceSmartChain, Optimism, Polygon
-- **Cosmos Ecosystem**: Cosmos, Kujira, Maya, THORChain
-- **Layer 1 Alternatives**: Near, Tron
-- **Testnets**: Berachain (testnet)
+- **EVM**: Arbitrum, Aurora, Avalanche, Base, Berachain, BNB Smart Chain, Ethereum, Monad, Optimism, Polygon, X Layer
+- **Cosmos ecosystem**: Cosmos Hub, Kujira, Maya, THORChain
+- **Other**: NEAR, Tron
+
+The chains are requested as optional namespaces; a chain the wallet does not approve is left out. If some chains fail to set up, the others stay connected and a warning is logged; the call throws only if no chain connected.
 
 ## Supported Wallets
 
-WalletConnect works with hundreds of wallets including:
-
-- **Mobile**: MetaMask Mobile, Trust Wallet, Rainbow, Coinbase Wallet, 1inch Wallet
-- **Desktop**: MetaMask, Coinbase Wallet, Brave Wallet
-- **Hardware**: Ledger Live, Trezor Suite (via WalletConnect)
-- **Multi-chain**: Keplr Mobile, Phantom Mobile, OKX Wallet
+Any wallet that supports WalletConnect v2 and approves the requested chains can connect.
 
 ## Installation and Setup
 
 ### 1. Get WalletConnect Project ID
 
-1. Visit [WalletConnect Cloud](https:
+1. Visit [WalletConnect Cloud](https://cloud.reown.com) and create a project
 2. Create a new project
 3. Copy your Project ID
 4. Configure your project settings (name, description, icons, URLs)
 
 ### 2. Configure Your Application
 
-Add WalletConnect metadata to your application:
+Pass this metadata to `connectWalletconnect` as `walletconnectOptions.metadata` (see Advanced Configuration below):
 
 ```json
 {
   "name": "Your DApp Name",
   "description": "Your DApp Description",
-  "url": "https:
-  "icons": ["https:
+  "url": "https://your-app.com",
+  "icons": ["https://your-app.com/icon.png"]
 }
 ```
 
@@ -184,6 +181,13 @@ async function connectMultipleChains() {
 
 #### Advanced Configuration
 
+The second argument is `WalletconnectOptions`: the `@walletconnect/sign-client` options (except `metadata`) plus:
+
+- `metadata` (partial): what the wallet shows on its approval screen; `url` defaults to the page's origin.
+- `restoreOnly`: reuse a stored session covering the chains, and fail instead of showing a QR code when there is none.
+
+`connectWalletconnect` throws `wallet_walletconnect_project_id_not_specified` if `apiKeys.walletConnectProjectId` is not set.
+
 ```ts twoslash
 
 import { USwap, walletconnectWallet, Chain } from "@tcswap/sdk";
@@ -202,11 +206,9 @@ async function connectWithAdvancedOptions() {
     metadata: {
       name: "My DApp",
       description: "My DApp Description",
-      url: "https:
-      icons: ["https:
+      url: "https://your-app.com",
+      icons: ["https://your-app.com/icon.png"],
     },
-
-
   };
 
   try {
@@ -247,7 +249,7 @@ await uSwap.connectWalletconnect([Chain.Ethereum]);
 
 async function sendEthereum() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+  const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
 
   try {
     console.log("Sending ETH via WalletConnect...");
@@ -261,7 +263,7 @@ async function sendEthereum() {
     });
 
     console.log("✅ ETH transfer sent:", txHash);
-    console.log("🔍 View on Etherscan:", `https:
+    console.log("🔍 View on Etherscan:", `https://etherscan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -290,10 +292,10 @@ await uSwap.connectWalletconnect([Chain.Ethereum]);
 async function sendERC20Token() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
 
-  const amount = AssetValue.fromChainOrSignature(
-    "ETH.USDC-0xA0B86A33E6441E89D5E4C4EDF4C8DF4C0E6C62F6",
-    100
-  );
+  const amount = AssetValue.from({
+    asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    value: 100,
+  });
 
   try {
     console.log("📱 Approve USDC transfer on your mobile wallet");
@@ -332,7 +334,7 @@ await uSwap.connectWalletconnect([Chain.Ethereum, Chain.Polygon, Chain.Arbitrum]
 
 async function sendOnPolygon() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("MATIC.MATIC", 1);
+  const amount = AssetValue.from({ asset: "POL.POL", value: 1 });
 
   try {
     console.log("📱 Approve MATIC transfer on your mobile wallet");
@@ -343,7 +345,7 @@ async function sendOnPolygon() {
     });
 
     console.log("✅ MATIC transfer sent via WalletConnect:", txHash);
-    console.log("🔍 View on PolygonScan:", `https:
+    console.log("🔍 View on PolygonScan:", `https://polygonscan.com/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -354,7 +356,7 @@ async function sendOnPolygon() {
 
 async function sendOnArbitrum() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ARB.ETH", 0.001);
+  const amount = AssetValue.from({ asset: "ARB.ETH", value: 0.001 });
 
   try {
     console.log("📱 Approve Arbitrum ETH transfer on your mobile wallet");
@@ -365,7 +367,7 @@ async function sendOnArbitrum() {
     });
 
     console.log("✅ Arbitrum ETH transfer sent:", txHash);
-    console.log("🔍 View on Arbiscan:", `https:
+    console.log("🔍 View on Arbiscan:", `https://arbiscan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -397,7 +399,7 @@ await uSwap.connectWalletconnect([Chain.Cosmos]);
 
 async function sendCosmos() {
   const recipient = "cosmos1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("GAIA.ATOM", 1);
+  const amount = AssetValue.from({ asset: "GAIA.ATOM", value: 1 });
 
   try {
     console.log("📱 Approve ATOM transfer on your mobile wallet (Keplr, etc.)");
@@ -409,7 +411,7 @@ async function sendCosmos() {
     });
 
     console.log("✅ ATOM transfer sent via WalletConnect:", txHash);
-    console.log("🔍 View on Mintscan:", `https:
+    console.log("🔍 View on Mintscan:", `https://www.mintscan.io/cosmos/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -439,7 +441,7 @@ await uSwap.connectWalletconnect([Chain.THORChain]);
 
 async function sendTHORChain() {
   const recipient = "thor1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("THOR.RUNE", 10);
+  const amount = AssetValue.from({ asset: "THOR.RUNE", value: 10 });
 
   try {
     console.log("📱 Approve RUNE transfer on your mobile wallet");
@@ -451,7 +453,7 @@ async function sendTHORChain() {
     });
 
     console.log("✅ RUNE transfer sent via WalletConnect:", txHash);
-    console.log("🔍 View on THORChain Explorer:", `https:
+    console.log("🔍 View on THORChain Explorer:", `https://runescan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -462,7 +464,7 @@ async function sendTHORChain() {
 
 
 async function depositToTHORChain() {
-  const amount = AssetValue.fromChainOrSignature("THOR.RUNE", 100);
+  const amount = AssetValue.from({ asset: "THOR.RUNE", value: 100 });
   const memo = "ADD:BTC.BTC:bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
 
   try {
@@ -576,7 +578,8 @@ async function connectCosmosEcosystem() {
 
 ```ts twoslash
 
-import { USwap, walletconnectWallet, Chain } from "@tcswap/sdk";
+import { USwap, USwapConfig, walletconnectWallet, Chain } from "@tcswap/sdk";
+import { isWalletconnectDismissed } from "@tcswap/wallets/walletconnect";
 
 const uSwap = USwap({
   config: {
@@ -601,10 +604,14 @@ async function diagnosticConnection() {
   } catch (error) {
     console.error("❌ WalletConnect connection failed:", error);
 
+    if (isWalletconnectDismissed(error)) {
+      console.log("🔧 The user closed the WalletConnect modal");
+    }
+
     if (error.message.includes("project_id")) {
       console.log("🔧 Troubleshooting steps:");
       console.log("1. Ensure WalletConnect Project ID is set correctly");
-      console.log("2. Check your project configuration at https:
+      console.log("2. Check your project configuration at https://cloud.reown.com");
       console.log("3. Verify the project ID is valid and active");
     }
 
@@ -626,8 +633,7 @@ async function diagnosticConnection() {
 
 
 function checkWalletConnectConfig() {
-  const config = uSwap.getConfig();
-  const projectId = config.apiKeys?.walletConnectProjectId;
+  const projectId = USwapConfig.get("apiKeys").walletConnectProjectId;
 
   if (!projectId) {
     console.error("❌ WalletConnect Project ID not configured");
@@ -651,7 +657,7 @@ function checkWalletConnectConfig() {
 ```ts twoslash
 async function handleTransactionErrors() {
   try {
-    const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+    const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
     const txHash = await uSwap.transfer({
       assetValue: amount,
       recipient: "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC",
@@ -693,6 +699,20 @@ async function handleTransactionErrors() {
 ```
 
 ### Session Management
+
+When the wallet ends a session (or it expires), the affected chains are removed. Subscribe with `onWalletconnectDisconnect`, and call `preloadWalletconnect` ahead of time so the modal opens immediately on connect:
+
+```ts twoslash
+import { onWalletconnectDisconnect, preloadWalletconnect } from "@tcswap/wallets/walletconnect";
+
+// Loads the sign client, connects to the relay and readies the QR modal.
+// Pass the same options you will pass to connectWalletconnect.
+preloadWalletconnect();
+
+const unsubscribe = onWalletconnectDisconnect((chains) => {
+  console.log("WalletConnect session ended for:", chains);
+});
+```
 
 ```ts twoslash
 async function handleSessionIssues() {
@@ -740,8 +760,8 @@ const uSwap = USwap({
     },
 
     rpcUrls: {
-      [Chain.Ethereum]: "https:
-      [Chain.Polygon]: "https:
+      [Chain.Ethereum]: ["https://ethereum-rpc.publicnode.com"],
+      [Chain.Polygon]: ["https://polygon-rpc.com"],
     },
   },
   wallets: { ...walletconnectWallet },
@@ -770,7 +790,7 @@ function validateAddress(address: string, chain: Chain): boolean {
 
 async function secureWalletConnectTransaction() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+  const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
 
 
   if (!validateAddress(recipient, Chain.Ethereum)) {
@@ -817,29 +837,29 @@ async function secureSessionManagement() {
 ### Project Configuration Security
 
 ```ts twoslash
-const getWalletConnectConfig = () => {
-  const projectId = process.env.WALLETCONNECT_PROJECT_ID;
+import { USwap, walletconnectWallet, Chain } from "@tcswap/sdk";
 
-  if (!projectId) {
-    throw new Error("WalletConnect Project ID not configured");
-  }
+const projectId = process.env.WALLETCONNECT_PROJECT_ID;
 
-  return {
-    projectId,
-    metadata: {
-      name: process.env.APP_NAME || "Your DApp",
-      description: process.env.APP_DESCRIPTION || "Your DApp Description",
-      url: process.env.APP_URL || window.location.origin,
-      icons: [process.env.APP_ICON || `${window.location.origin}/icon.png`],
-    },
-  };
-};
+if (!projectId) {
+  throw new Error("WalletConnect Project ID not configured");
+}
 
 const uSwap = USwap({
   config: {
-    apiKeys: getWalletConnectConfig(),
+    apiKeys: { walletConnectProjectId: projectId },
   },
   wallets: { ...walletconnectWallet },
+});
+
+// Metadata is passed per connect, not through the config
+await uSwap.connectWalletconnect([Chain.Ethereum], {
+  metadata: {
+    name: process.env.APP_NAME || "Your DApp",
+    description: process.env.APP_DESCRIPTION || "Your DApp Description",
+    url: process.env.APP_URL || window.location.origin,
+    icons: [process.env.APP_ICON || `${window.location.origin}/icon.png`],
+  },
 });
 ```
 
@@ -917,7 +937,7 @@ export function WalletConnect({ onConnect, onError }: WalletConnectProps) {
         <p>⚠️ WalletConnect Project ID not configured</p>
         <p>Add REACT_APP_WALLETCONNECT_PROJECT_ID to your environment variables</p>
         <a
-          href="https:
+          href="https://cloud.reown.com"
           target="_blank"
           rel="noopener noreferrer"
         >

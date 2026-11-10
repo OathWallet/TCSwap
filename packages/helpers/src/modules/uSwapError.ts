@@ -442,7 +442,7 @@ const errorCodes = {
    */
   plugin_garden_missing_data: 42001,
   /**
-   * SwapKit API
+   * TCSwap API
    */
   api_v2_invalid_response: 60001,
   api_v2_server_error: 60002,

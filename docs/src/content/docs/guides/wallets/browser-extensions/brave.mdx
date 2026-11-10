@@ -1,0 +1,58 @@
+---
+title: Brave Wallet Integration
+description: Connect Brave's built-in wallet to TCSwap for EVM chains and Solana
+---
+
+Brave Wallet (built into the Brave browser) is supported through `braveWallet`, which adds the `connectBrave` method to your TCSwap client (`WalletOption.BRAVE`). It connects both Brave's EVM account and its Solana account.
+
+## Supported Chains
+
+`connectBrave` accepts the following chains (`BRAVE_SUPPORTED_CHAINS`):
+
+- **EVM**: every chain in `EVMChains` (Arbitrum, Aurora, Avalanche, Base, Berachain, BNB Smart Chain, Botanix, Core, Corn, Cronos, Ethereum, Gnosis, HyperEVM, Monad, Optimism, Polygon, Sonic, Unichain, X Layer)
+- **Solana**
+
+## Installation and Import
+
+```bash
+bun add @tcswap/sdk
+```
+
+```ts twoslash
+import { Chain, USwap, braveWallet } from "@tcswap/sdk";
+```
+
+## Connecting
+
+```ts twoslash
+import { Chain, USwap, braveWallet } from "@tcswap/sdk";
+
+const uSwap = USwap({
+  config: { apiKeys: { uSwap: "your-api-key" } },
+  wallets: { ...braveWallet },
+});
+
+await uSwap.connectBrave([Chain.Ethereum, Chain.Base, Chain.Solana]);
+
+const evmAddress = uSwap.getAddress(Chain.Ethereum);
+const solAddress = uSwap.getAddress(Chain.Solana);
+```
+
+### Watching account changes
+
+`watchBraveAccounts` calls you back when the user switches account on either side (with `undefined` when the Solana account switched to is not connected to the site). It returns an unsubscribe function.
+
+```ts twoslash
+import { watchBraveAccounts } from "@tcswap/wallets/brave";
+
+const unsubscribe = watchBraveAccounts((address) => {
+  console.log("Brave account changed:", address);
+});
+```
+
+## Notes
+
+- The EVM provider is `window.braveEthereum`, else `window.ethereum` when it has `isBraveWallet`, else the EIP-6963 provider announced as `com.brave.wallet`. The Solana provider is `window.braveSolana`, else `window.solana` when it has `isBraveWallet`.
+- Chains connect independently: a chain that fails is logged and skipped; `connectBrave` throws only if every requested chain failed.
+- Errors you may see: `wallet_brave_evm_not_found`, `wallet_brave_solana_not_found`, `wallet_brave_no_address`.
+- Brave can also be used for EVM chains only through `evmWallet` with `WalletOption.BRAVE` (see the MetaMask page), which uses `window.ethereum`.

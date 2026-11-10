@@ -1,5 +1,5 @@
 "use client";
-import { ChainIcon, useModal, useSwapKit } from "@tcswap/ui/react";
+import { ChainIcon, useModal, useUSwap } from "@tcswap/ui/react";
 import { LogOut } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "~/components/ui/sheet";
@@ -9,7 +9,7 @@ import { Separator } from "./ui/separator";
 
 export function WalletDrawer() {
   const modal = useModal();
-  const { walletType, disconnectWallet, balancesByChain } = useSwapKit();
+  const { walletType, disconnectWallet, balancesByChain } = useUSwap();
 
   return (
     <Sheet {...modal}>

@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: TCSwap - Build Cross-Chain DeFi in Minutes
 description: TCSwap provides everything you need to integrate blockchain functionality into your application with a single, unified API supporting 20+ blockchains.
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Card, CardGrid, Tabs, TabItem } from "@astrojs/starlight/components";
 import PlaygroundLinks from "../../components/PlaygroundLinks.astro";
@@ -30,8 +31,8 @@ TCSwap provides everything you need to integrate blockchain functionality into y
     DeFi protocols. [View API Reference →](/guides/api-reference)
   </Card>
   <Card title="Runtime Configuration" icon="setting">
-    **New in v4**: Update API keys, RPC URLs, and settings at runtime without
-    recreating your client. [Learn About v4 →](/guides/whats-new-v4)
+    Update API keys, RPC URLs, and settings at runtime without
+    recreating your client. [Configuration →](/start/configuration)
   </Card>
 </CardGrid>
 
@@ -55,7 +56,7 @@ const xrpBalance = await uSwap.getBalance(Chain.Ripple);
 
 const { routes } = await USwapApi.getSwapQuote({
   sellAsset: "ETH.ETH",
-  sellAmount: "1000000000000000000",
+  sellAmount: "1",
   buyAsset: "BTC.BTC",
   sourceAddress: uSwap.getAddress(Chain.Ethereum),
   destinationAddress: uSwap.getAddress(Chain.Bitcoin),
@@ -85,7 +86,7 @@ if (routes.length > 0) {
   </Card>
   <Card title="Active Development" icon="github">
     Regular updates, new chain integrations, and responsive community support.
-    [What's New →](/guides/whats-new-v4)
+    [View on GitHub →](https://github.com/thorchain/TCSwap)
   </Card>
 </CardGrid>
 
@@ -137,8 +138,8 @@ Whether you're building a simple wallet connector or a complex DeFi protocol, TC
 <PlaygroundLinks
   title="🚀 Jump Right In!"
   description="Experience TCSwap in action with our interactive playgrounds and examples"
-  stackblitzUrl="https://stackblitz.com/github/horizontalsystems/USwap/tree/main/playgrounds/nextjs"
-  codesandboxUrl="https://codesandbox.io/p/github/horizontalsystems/USwap/tree/main/playgrounds/nextjs"
+  stackblitzUrl="https://stackblitz.com/github/thorchain/TCSwap/tree/main/playgrounds/nextjs"
+  codesandboxUrl="https://codesandbox.io/p/github/thorchain/TCSwap/tree/main/playgrounds/nextjs"
 />
 
 ## Get Started in 3 Steps
@@ -147,11 +148,25 @@ Whether you're building a simple wallet connector or a complex DeFi protocol, TC
 
 <Tabs syncKey="package-manager">
   <TabItem label="bun" icon="bun">
-    ```bash bun add @tcswap/sdk ```
+    ```bash
+    bun add @tcswap/sdk
+    ```
   </TabItem>
-  <TabItem label="pnpm">```bash pnpm add @tcswap/sdk ```</TabItem>
-  <TabItem label="npm">```bash npm install @tcswap/sdk ```</TabItem>
-  <TabItem label="yarn">```bash yarn add @tcswap/sdk ```</TabItem>
+  <TabItem label="pnpm">
+    ```bash
+    pnpm add @tcswap/sdk
+    ```
+  </TabItem>
+  <TabItem label="npm">
+    ```bash
+    npm install @tcswap/sdk
+    ```
+  </TabItem>
+  <TabItem label="yarn">
+    ```bash
+    yarn add @tcswap/sdk
+    ```
+  </TabItem>
 </Tabs>
 
 ### 2. Initialize the SDK
@@ -203,24 +218,24 @@ const txHash = await uSwap.transfer({
 >
   <PlaygroundLinks
     compact={true}
-    stackblitzUrl="https://stackblitz.com/github/horizontalsystems/USwap/tree/main/playgrounds/nextjs"
-    codesandboxUrl="https://codesandbox.io/p/github/horizontalsystems/USwap/tree/main/playgrounds/nextjs"
+    stackblitzUrl="https://stackblitz.com/github/thorchain/TCSwap/tree/main/playgrounds/nextjs"
+    codesandboxUrl="https://codesandbox.io/p/github/thorchain/TCSwap/tree/main/playgrounds/nextjs"
   />
 </TryItYourself>
 
 ## Join the Community
 
 <CardGrid>
-  <Card title="Discord" icon="open">
-    Join our Discord server for support and discussions with the community.
+  <Card title="Issues" icon="open">
+    Report bugs and request features on GitHub.
 
-    [Join Discord →](https:
+    [Open an Issue →](https://github.com/thorchain/TCSwap/issues)
 
   </Card>
   <Card title="GitHub" icon="github">
     Contribute to TCSwap development or report issues on GitHub.
 
-    [View on GitHub →](https:
+    [View on GitHub →](https://github.com/thorchain/TCSwap)
 
   </Card>
 </CardGrid>

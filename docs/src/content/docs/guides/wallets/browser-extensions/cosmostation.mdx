@@ -1,0 +1,50 @@
+---
+title: Cosmostation Wallet Integration
+description: Connect the Cosmostation browser extension to TCSwap for Cosmos Hub, Kujira, Noble and THORChain
+---
+
+The Cosmostation browser extension is supported through `cosmostationWallet`, which adds the `connectCosmostation` method to your TCSwap client (`WalletOption.COSMOSTATION`).
+
+## Supported Chains
+
+`connectCosmostation` accepts the following chains (`COSMOSTATION_SUPPORTED_CHAINS`):
+
+- **Cosmos ecosystem**: Cosmos Hub, Kujira, Noble, THORChain
+- **EVM**: Arbitrum, Avalanche, Base, BNB Smart Chain, Ethereum, Optimism, Polygon, X Layer (see the notes: address only)
+
+## Installation and Import
+
+`cosmostationWallet` is not re-exported from the `@tcswap/sdk` root and is not part of `createUSwap`'s default wallets, so import it from the wallets package (it is also re-exported from `@tcswap/sdk/wallets`):
+
+```bash
+bun add @tcswap/sdk @tcswap/wallets
+```
+
+```ts twoslash
+import { Chain, USwap } from "@tcswap/sdk";
+import { cosmostationWallet } from "@tcswap/wallets/cosmostation";
+```
+
+## Connecting
+
+```ts twoslash
+import { AssetValue, Chain, USwap } from "@tcswap/sdk";
+import { cosmostationWallet } from "@tcswap/wallets/cosmostation";
+
+const uSwap = USwap({
+  config: { apiKeys: { uSwap: "your-api-key" } },
+  wallets: { ...cosmostationWallet },
+});
+
+await uSwap.connectCosmostation([Chain.Cosmos, Chain.THORChain]);
+
+const txHash = await uSwap.transfer({
+  assetValue: AssetValue.from({ asset: "GAIA.ATOM", value: 1 }),
+  recipient: "cosmos1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+});
+```
+
+## Notes
+
+- Cosmos chains use Cosmostation's Keplr-compatible provider (`window.cosmostation.providers.keplr`) and its amino signer. Errors: `wallet_cosmostation_not_found` (no `window.cosmostation`), `wallet_cosmostation_keplr_provider_not_found`, `wallet_cosmostation_signer_not_found`, `wallet_cosmostation_no_accounts`.
+- EVM chains read the account from `window.ethereum` (`eth_requestAccounts`), whichever extension injected it. In the current implementation the EVM toolbox is not attached to these chains, so only the address is available: transfers and balance lookups on EVM chains through Cosmostation are not supported. Use another EVM wallet for EVM transactions.

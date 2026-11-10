@@ -1,10 +1,10 @@
 "use client";
 
-// import { useSwapKit } from "@tcswap/ui/react";
+// import { useUSwap } from "@tcswap/ui/react";
 import { Card, CardDescription, CardTitle } from "~/components/ui/card";
 
 export default function Send() {
-  // const { swapKit } = useSwapKit();
+  // const { uSwap } = useUSwap();
 
   return (
     <div>

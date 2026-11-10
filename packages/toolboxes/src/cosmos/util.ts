@@ -100,7 +100,7 @@ export async function createStargateClient(url: string) {
   const defaultRequestHeaders =
     typeof window !== "undefined"
       ? ({} as Record<string, string>)
-      : { referer: "https://sdk.uswap.dev", referrer: "https://sdk.uswap.dev" };
+      : { referer: "https://github.com/thorchain/TCSwap", referrer: "https://github.com/thorchain/TCSwap" };
 
   return StargateClient.connect({ headers: defaultRequestHeaders, url });
 }

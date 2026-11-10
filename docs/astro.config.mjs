@@ -8,14 +8,14 @@ import { rendererRich, transformerTwoslash } from "@shikijs/twoslash";
 import { defineConfig } from "astro/config";
 import starlightOpenAPI, { openAPISidebarGroups } from "starlight-openapi";
 import { createStarlightTypeDocPlugin } from "starlight-typedoc";
-import { remarkRewriteLinks } from "./remark-rewrite-links.mjs";
 
 const { plugins: docsPlugins, sidebarItems: docsSidebarItems } = createDocs();
 
-const openApiPlugin = starlightOpenAPI([{ base: "api", schema: "https://api.uSwap.dev/docs/json" }]);
+// The REST API reference is generated from an OpenAPI schema. Set OPENAPI_SCHEMA_URL to enable it.
+const openApiSchema = process.env.OPENAPI_SCHEMA_URL;
+const openApiPlugins = openApiSchema ? [starlightOpenAPI([{ base: "api", schema: openApiSchema }])] : [];
 
 export default defineConfig({
-  base: process.env.REFERENCES ? "/USwap" : undefined,
   integrations: [
     react(),
     starlight({
@@ -23,9 +23,8 @@ export default defineConfig({
       disable404Route: true,
       expressiveCode: false,
       lastUpdated: true,
-      logo: { dark: "./src/assets/logo-vertical-white.png", light: "./src/assets/logo-vertical-black.png" },
       pagination: true,
-      plugins: [openApiPlugin, ...docsPlugins],
+      plugins: [...openApiPlugins, ...docsPlugins],
       sidebar: [
         {
           items: [
@@ -45,13 +44,19 @@ export default defineConfig({
             { label: "Production Best Practices", link: "/guides/production-best-practices" },
             { label: "Create custom plugin", link: "/guides/create-plugin" },
             { label: "Create custom wallet", link: "/guides/create-wallet" },
+            { label: "NEAR Integration", link: "/guides/near-integration" },
+            { label: "Error Handling", link: "/guides/error-handling" },
+            { label: "Security", link: "/guides/security" },
+            { label: "Testing", link: "/guides/testing" },
           ],
           label: "Guides",
         },
         { autogenerate: { directory: "guides/actions" }, collapsed: true, label: "Actions" },
+        { autogenerate: { directory: "guides/chains" }, collapsed: true, label: "Chains" },
+        { autogenerate: { directory: "guides/wallets" }, collapsed: true, label: "Wallets" },
+        { autogenerate: { directory: "guides/plugins" }, collapsed: true, label: "Plugins" },
         { autogenerate: { directory: "guides/integrations" }, collapsed: true, label: "Integrations" },
-        { autogenerate: { directory: "others" }, collapsed: true, label: "Others" },
-        ...openAPISidebarGroups,
+        ...(openApiSchema ? openAPISidebarGroups : []),
         {
           collapsed: true,
           items: process.env.REFERENCES ? [{ items: docsSidebarItems, label: "@tcswap" }] : [],
@@ -59,14 +64,12 @@ export default defineConfig({
         },
       ],
       social: [
-        { href: "https://github.com/horizontalsystems/USwap", icon: "github", label: "GitHub" },
-        { href: "https://x.com/unstoppablebyhs", icon: "x.com", label: "X" },
+        { href: "https://github.com/thorchain/TCSwap", icon: "github", label: "GitHub" },
       ],
-      title: "",
+      title: "TCSwap",
     }),
   ],
   markdown: {
-    remarkPlugins: [remarkRewriteLinks],
     shikiConfig: {
       transformers: [
         transformerTwoslash({
@@ -91,7 +94,6 @@ export default defineConfig({
     },
     syntaxHighlight: "shiki",
   },
-  site: process.env.REFERENCES ? "https://uswap.github.io" : undefined,
 });
 
 function createDocs() {

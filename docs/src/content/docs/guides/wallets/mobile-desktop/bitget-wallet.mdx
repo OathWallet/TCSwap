@@ -1,20 +1,23 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Bitget Wallet Integration
 description: Complete guide to integrating Bitget Wallet with TCSwap SDK v4 for multi-chain support
 ---
 
-Bitget Wallet is a comprehensive multi-chain wallet that supports a wide range of blockchain networks. TCSwap SDK v4 provides extensive support for Bitget Wallet across all its supported chains, making it an excellent choice for multi-chain applications.
+{/* Modifications © 2025 Horizontal Systems. */}
+
+Bitget Wallet is a comprehensive multi-chain wallet that supports a wide range of blockchain networks. TCSwap supports Bitget Wallet through `bitgetWallet`, which exposes the `connectBitget` method. It uses the provider Bitget injects as `window.bitkeep`, so it works with the Bitget Wallet browser extension and inside the Bitget Wallet app's built-in dApp browser.
 
 ## Supported Chains
 
-TCSwap supports Bitget Wallet for these chains:
+`connectBitget` connects these chains:
 
-- **EVM Compatible**: All EVM chains (Ethereum, Arbitrum, Aurora, Avalanche, Base, BinanceSmartChain, Gnosis, Optimism, Polygon)
-- **Bitcoin**: Native Bitcoin support
-- **Solana**: SOL and SPL tokens
-- **Cosmos Ecosystem**: Cosmos Hub
-- **Layer 1 Alternatives**: Tron
+- **EVM** (via `window.bitkeep.ethereum`): Arbitrum, Aurora, Avalanche, Base, Berachain, BNB Smart Chain, Ethereum, Gnosis, Monad, Optimism, Polygon, X Layer
+- **Bitcoin** (via `window.bitkeep.unisat`)
+- **Cosmos Hub** (via `window.bitkeep.keplr`)
+- **Solana** (via `window.bitkeep.solana`)
+- **Tron** (via `window.bitkeep.tronLink` and `window.bitkeep.tronWeb`)
+
+`BITGET_SUPPORTED_CHAINS` lists every chain in `EVMChains`, but EVM chains outside the list above throw `wallet_chain_not_supported` when connected. If the needed Bitget provider is missing, connecting throws `wallet_bitkeep_not_found`.
 
 ## Installation and Setup
 
@@ -23,10 +26,10 @@ TCSwap supports Bitget Wallet for these chains:
 Install Bitget Wallet from official sources:
 
 - **Mobile App**:
-  - iOS: [App Store](https:
-  - Android: [Google Play](https:
+  - iOS: [App Store](https://apps.apple.com/app/bitget-wallet/id1395301115)
+  - Android: [Google Play](https://play.google.com/store/apps/details?id=com.bitkeep.wallet)
 - **Browser Extension**:
-  - [Chrome Web Store](https:
+  - [Download](https://web3.bitget.com/en/wallet-download)
   - Available for Chrome, Firefox, Edge
 
 ### 2. Set Up Bitget Wallet
@@ -214,7 +217,7 @@ await uSwap.connectBitget([Chain.Ethereum]);
 
 async function sendEthereum() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+  const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
 
   try {
     console.log("Sending ETH via Bitget Wallet...");
@@ -228,7 +231,7 @@ async function sendEthereum() {
     });
 
     console.log("✅ ETH transfer sent:", txHash);
-    console.log("🔍 View on Etherscan:", `https:
+    console.log("🔍 View on Etherscan:", `https://etherscan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -252,10 +255,10 @@ await uSwap.connectBitget([Chain.Ethereum]);
 async function sendERC20Token() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
 
-  const amount = AssetValue.fromChainOrSignature(
-    "ETH.USDC-0xA0B86A33E6441E89D5E4C4EDF4C8DF4C0E6C62F6",
-    100
-  );
+  const amount = AssetValue.from({
+    asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    value: 100,
+  });
 
   try {
     console.log("📱 Approve USDC transfer in Bitget Wallet");
@@ -289,7 +292,7 @@ await uSwap.connectBitget([Chain.Bitcoin]);
 
 async function sendBitcoin() {
   const recipient = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("BTC.BTC", 0.001);
+  const amount = AssetValue.from({ asset: "BTC.BTC", value: 0.001 });
 
   try {
     console.log("Sending Bitcoin via Bitget Wallet...");
@@ -303,7 +306,7 @@ async function sendBitcoin() {
     });
 
     console.log("✅ Bitcoin transfer sent:", txHash);
-    console.log("🔍 View on Blockstream:", `https:
+    console.log("🔍 View on Blockstream:", `https://blockstream.info/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -330,7 +333,7 @@ await uSwap.connectBitget([Chain.Solana]);
 
 async function sendSolana() {
   const recipient = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
-  const amount = AssetValue.fromChainOrSignature("SOL.SOL", 0.1);
+  const amount = AssetValue.from({ asset: "SOL.SOL", value: 0.1 });
 
   try {
     console.log("Sending SOL via Bitget Wallet...");
@@ -343,7 +346,7 @@ async function sendSolana() {
     });
 
     console.log("✅ SOL transfer sent:", txHash);
-    console.log("🔍 View on Solscan:", `https:
+    console.log("🔍 View on Solscan:", `https://solscan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -367,10 +370,10 @@ await uSwap.connectBitget([Chain.Solana]);
 async function sendSPLToken() {
   const recipient = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
 
-  const amount = AssetValue.fromChainOrSignature(
-    "SOL.USDC-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-    100
-  );
+  const amount = AssetValue.from({
+    asset: "SOL.USDC-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    value: 100,
+  });
 
   try {
     const txHash = await uSwap.transfer({
@@ -402,7 +405,7 @@ await uSwap.connectBitget([Chain.Ethereum, Chain.Polygon, Chain.Arbitrum]);
 
 async function sendOnPolygon() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("MATIC.MATIC", 1);
+  const amount = AssetValue.from({ asset: "POL.POL", value: 1 });
 
   try {
     console.log("📱 Approve MATIC transfer in Bitget Wallet");
@@ -413,7 +416,7 @@ async function sendOnPolygon() {
     });
 
     console.log("✅ MATIC transfer sent via Bitget:", txHash);
-    console.log("🔍 View on PolygonScan:", `https:
+    console.log("🔍 View on PolygonScan:", `https://polygonscan.com/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -438,7 +441,7 @@ await uSwap.connectBitget([Chain.Cosmos]);
 
 async function sendCosmos() {
   const recipient = "cosmos1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("GAIA.ATOM", 1);
+  const amount = AssetValue.from({ asset: "GAIA.ATOM", value: 1 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -448,7 +451,7 @@ async function sendCosmos() {
     });
 
     console.log("✅ ATOM transfer sent via Bitget:", txHash);
-    console.log("🔍 View on Mintscan:", `https:
+    console.log("🔍 View on Mintscan:", `https://www.mintscan.io/cosmos/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -473,7 +476,7 @@ await uSwap.connectBitget([Chain.Tron]);
 
 async function sendTron() {
   const recipient = "TLPwm9iGkMiTUERrQ8KXWCFzPn5Q3wz5jc";
-  const amount = AssetValue.fromChainOrSignature("TRON.TRX", 10);
+  const amount = AssetValue.from({ asset: "TRON.TRX", value: 10 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -482,7 +485,7 @@ async function sendTron() {
     });
 
     console.log("✅ TRX transfer sent via Bitget:", txHash);
-    console.log("🔍 View on TronScan:", `https:
+    console.log("🔍 View on TronScan:", `https://tronscan.org/#/transaction/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -603,7 +606,7 @@ async function diagnosticConnection() {
 
     if (typeof window.bitkeep === 'undefined') {
       console.error("❌ Bitget Wallet extension not found");
-      console.log("🔧 Install Bitget Wallet from https:
+      console.log("🔧 Install Bitget Wallet from https://web3.bitget.com/en/wallet-download");
       return { success: false, error: "Bitget Wallet not installed" };
     }
 
@@ -642,10 +645,10 @@ async function checkBitgetProviders() {
   const providers = {
     bitkeep: !!window.bitkeep,
     ethereum: !!window.bitkeep?.ethereum,
-    bitcoin: !!window.bitkeep?.bitcoin,
+    bitcoin: !!window.bitkeep?.unisat,
     solana: !!window.bitkeep?.solana,
-    cosmos: !!window.bitkeep?.cosmos,
-    tron: !!window.bitkeep?.tron,
+    cosmos: !!window.bitkeep?.keplr,
+    tron: !!window.bitkeep?.tronLink,
   };
 
   console.log("Bitget Wallet providers:", providers);
@@ -658,7 +661,7 @@ async function checkBitgetProviders() {
 ```ts twoslash
 async function handleTransactionErrors() {
   try {
-    const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+    const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
     const txHash = await uSwap.transfer({
       assetValue: amount,
       recipient: "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC",
@@ -707,7 +710,7 @@ async function handleChainSpecificIssues(chain: Chain) {
   } catch (error) {
     switch (chain) {
       case Chain.Bitcoin:
-        if (error.message.includes("bitcoin")) {
+        if (error.message.includes("wallet_bitkeep_not_found")) {
           console.error("❌ Bitcoin connection failed");
           console.log("🔧 Ensure Bitcoin is enabled in Bitget Wallet");
           console.log("🔧 Check if you have a Bitcoin address configured");
@@ -715,7 +718,7 @@ async function handleChainSpecificIssues(chain: Chain) {
         break;
 
       case Chain.Solana:
-        if (error.message.includes("solana")) {
+        if (error.message.includes("wallet_bitkeep_not_found")) {
           console.error("❌ Solana connection failed");
           console.log("🔧 Ensure Solana is enabled in Bitget Wallet");
           console.log("🔧 Check if Solana provider is available");
@@ -723,7 +726,7 @@ async function handleChainSpecificIssues(chain: Chain) {
         break;
 
       case Chain.Cosmos:
-        if (error.message.includes("cosmos")) {
+        if (error.message.includes("wallet_bitkeep_not_found")) {
           console.error("❌ Cosmos connection failed");
           console.log("🔧 Ensure Cosmos is enabled in Bitget Wallet");
           console.log("🔧 Check if you have imported a Cosmos account");
@@ -731,7 +734,7 @@ async function handleChainSpecificIssues(chain: Chain) {
         break;
 
       case Chain.Tron:
-        if (error.message.includes("tron")) {
+        if (error.message.includes("wallet_bitkeep_not_found")) {
           console.error("❌ Tron connection failed");
           console.log("🔧 Ensure Tron is enabled in Bitget Wallet");
           console.log("🔧 Check Tron network configuration");
@@ -798,13 +801,13 @@ async function secureTransfer(chain: Chain, recipient: string, amount: number) {
   let assetValue: AssetValue;
   switch (chain) {
     case Chain.Ethereum:
-      assetValue = AssetValue.fromChainOrSignature("ETH.ETH", amount);
+      assetValue = AssetValue.from({ asset: "ETH.ETH", value: amount });
       break;
     case Chain.Bitcoin:
-      assetValue = AssetValue.fromChainOrSignature("BTC.BTC", amount);
+      assetValue = AssetValue.from({ asset: "BTC.BTC", value: amount });
       break;
     case Chain.Solana:
-      assetValue = AssetValue.fromChainOrSignature("SOL.SOL", amount);
+      assetValue = AssetValue.from({ asset: "SOL.SOL", value: amount });
       break;
 
     default:
@@ -842,11 +845,11 @@ const secureUSwap = USwap({
   config: {
 
     rpcUrls: {
-      [Chain.Ethereum]: "https:
-      [Chain.Bitcoin]: "https:
-      [Chain.Solana]: "https:
-      [Chain.Cosmos]: "https:
-      [Chain.Tron]: "https:
+      [Chain.Ethereum]: ["https://ethereum-rpc.publicnode.com"],
+      [Chain.Bitcoin]: ["https://bitcoin-rpc.publicnode.com"],
+      [Chain.Solana]: ["https://api.mainnet-beta.solana.com"],
+      [Chain.Cosmos]: ["https://cosmos-rpc.publicnode.com"],
+      [Chain.Tron]: ["https://tron-rpc.publicnode.com"],
     },
     apiKeys: {
       uSwap: process.env.USWAP_API_KEY,
@@ -939,7 +942,7 @@ export function BitgetWallet({ onConnect, onError }: BitgetWalletProps) {
         <h3>Bitget Wallet</h3>
         <p>Bitget Wallet extension not detected</p>
         <a
-          href="https:
+          href="https://web3.bitget.com/en/wallet-download"
           target="_blank"
           rel="noopener noreferrer"
         >

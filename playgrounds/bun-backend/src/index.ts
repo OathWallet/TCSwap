@@ -3,10 +3,10 @@
  */
 
 import { Chain } from "@tcswap/helpers";
-import { keystoreWallet, SwapKit } from "@tcswap/sdk";
+import { keystoreWallet, USwap } from "@tcswap/sdk";
 import { KEYSTORE_SUPPORTED_CHAINS } from "@tcswap/wallets/keystore";
 
-const swapKit = SwapKit({ wallets: keystoreWallet });
+const uSwap = USwap({ wallets: keystoreWallet });
 
 const phrase = process.env.TEST_PHRASE;
 

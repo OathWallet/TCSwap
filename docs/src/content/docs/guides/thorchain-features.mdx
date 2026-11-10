@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: THORChain Features
-description: Learn how to use advanced THORChain DeFi features including liquidity provision, savings, and lending through USwap.
+description: Learn how to use advanced THORChain DeFi features including liquidity provision, THORNames, and node operations through TCSwap.
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 THORChain provides advanced DeFi features beyond simple swaps. TCSwap includes full support for these features through the THORChain [plugin](/guides/create-plugin).
 
@@ -19,7 +20,10 @@ import { createUSwap, Chain, FeeOption } from "@tcswap/sdk";
 
 const uSwap = createUSwap();
 
-await uSwap.connectKeystore([Chain.THORChain], "your mnemonic phrase");
+await uSwap.connectKeystore(
+  [Chain.THORChain, Chain.Ethereum, Chain.Bitcoin],
+  "your mnemonic phrase"
+);
 ```
 
 ## Liquidity Operations
@@ -136,12 +140,20 @@ const toAssetOnly = await uSwap.thorchain.withdraw({
 import { USwapApi } from "@tcswap/helpers/api";
 
 const thorAddress = uSwap.getAddress(Chain.THORChain);
-const position = await USwapApi.thorchainMidgard.getLiquidityPosition(
+const positions = await USwapApi.thorchainMidgard.getLiquidityPosition(
   thorAddress
 );
 
-console.log("Pools:", position.pools);
-console.log("Total value USD:", position.totalValueUSD);
+for (const position of positions) {
+  console.log("Pool asset:", position.asset.toString());
+  console.log("Asset added:", position.asset.toSignificant(6));
+  console.log("RUNE added:", position.rune?.toSignificant(6));
+  console.log("Pool share:", position.poolShare.toSignificant(6));
+}
+
+// Raw Midgard member response
+const raw = await USwapApi.thorchainMidgard.getLiquidityPositionRaw(thorAddress);
+console.log("Pools:", raw.pools);
 ```
 
 ## THORNames
@@ -156,10 +168,9 @@ THORNames are human-readable aliases for wallet addresses across all supported c
 const thorname = "myname";
 const years = 1;
 
-const details = await USwapApi.thorchainMidgard.getTHORNameDetails(thorname);
-if (details.owner) {
-  console.log("THORName already taken");
-  return;
+const details = await USwapApi.thorchainMidgard.getNameDetails(thorname);
+if (details?.owner) {
+  throw new Error("THORName already taken");
 }
 
 const registrationFee = AssetValue.from({
@@ -189,8 +200,9 @@ const preferredAsset = AssetValue.from({
   value: 0,
 });
 
+// `assetValue` is the preferred asset; the protocol fee is paid in RUNE automatically
 const setPreferredTx = await uSwap.thorchain.registerPreferredAsset({
-  assetValue: AssetValue.from({ chain: Chain.THORChain }),
+  assetValue: preferredAsset,
   name: thorname,
   ownerAddress: uSwap.getAddress(Chain.THORChain),
   payoutAddress: uSwap.getAddress(Chain.Ethereum),
@@ -233,16 +245,14 @@ for (const [chain, chainId] of Object.entries(chainMap)) {
 
 ```typescript
 // @noErrorValidation
-const thornameDetails = await USwapApi.thorchainMidgard.getTHORNameDetails(
-  "myname"
-);
+const thornameDetails = await USwapApi.thorchainMidgard.getNameDetails("myname");
 
-console.log("Owner:", thornameDetails.owner);
-console.log("Preferred asset:", thornameDetails.preferredAsset);
-console.log("Aliases:", thornameDetails.aliases);
+console.log("Owner:", thornameDetails?.owner);
+console.log("Expires at block:", thornameDetails?.expire);
+console.log("Aliases:", thornameDetails?.entries);
 
-const ethAddress = thornameDetails.aliases.find(
-  (a) => a.chain === "ETH"
+const ethAddress = thornameDetails?.entries.find(
+  (entry) => entry.chain === "ETH"
 )?.address;
 ```
 
@@ -336,7 +346,7 @@ if (!isApproved) {
 
 ## Maya Protocol
 
-Maya is a fork of THORChain with similar features. TCSwap supports Maya through the Maya plugin:
+Maya is a fork of THORChain with similar features. TCSwap supports Maya through the Maya plugin (`uSwap.mayachain`), which exposes the same methods as `uSwap.thorchain`:
 
 ```typescript
 // @noErrorValidation
@@ -360,11 +370,13 @@ console.log("BTC router:", btcInbound.router);
 console.log("Gas rate:", btcInbound.gas_rate);
 console.log("Chain halted:", btcInbound.halted);
 
+// getInboundDataByChain throws a USwapError ("core_chain_halted") if the chain is halted
 const chains = [Chain.Ethereum, Chain.Bitcoin, Chain.BinanceSmartChain];
 for (const chain of chains) {
-  const inbound = await uSwap.thorchain.getInboundDataByChain(chain);
-  if (inbound.halted) {
-    console.log(`${chain} is currently halted`);
+  try {
+    await uSwap.thorchain.getInboundDataByChain(chain);
+  } catch (error) {
+    console.log(`${chain} is unavailable:`, error);
   }
 }
 ```
@@ -380,9 +392,8 @@ Before adding liquidity or making swaps:
 const pools = await USwapApi.thorchainMidgard.getPools();
 const btcPool = pools.find((p) => p.asset === "BTC.BTC");
 
-if (btcPool?.status !== "Available") {
-  console.log("Pool not available");
-  return;
+if (btcPool?.status !== "available") {
+  throw new Error("Pool not available");
 }
 ```
 
@@ -394,12 +405,14 @@ For large liquidity operations:
 // @noErrorValidation
 const quote = await USwapApi.getSwapQuote({
   sellAsset: "THOR.RUNE",
-  sellAmount: "1000000000000",
+  sellAmount: "10000",
   buyAsset: "BTC.BTC",
+  providers: ["THORCHAIN"],
 });
 
-const slippage = quote.routes[0].fees.slippage;
-console.log(`Slippage: ${slippage}%`);
+const route = quote.routes[0];
+console.log("Price impact:", route?.meta?.priceImpact);
+console.log("Fees:", route?.fees);
 ```
 
 ### 3. Monitor Transaction Status
@@ -409,8 +422,8 @@ Track THORChain transactions:
 ```typescript
 // @noErrorValidation
 const txStatus = await USwapApi.getTrackerDetails({
-  txHash: "ABCD...",
-  chain: "THOR",
+  hash: "ABCD...",
+  chainId: "thorchain-1",
 });
 
 if (txStatus.status === "completed") {
@@ -444,6 +457,11 @@ Here's a complete list of THORChain plugin methods:
 
 - `nodeAction()` - Bond, unbond, or leave as node operator
 
+### TCY Methods
+
+- `claimTcy()` - Claim TCY for an address
+- `stakeTcyAction()` - Stake or unstake TCY
+
 ### Token Methods (EVM)
 
 - `approveAssetValue()` - Approve tokens for router
@@ -451,11 +469,11 @@ Here's a complete list of THORChain plugin methods:
 
 ### Utility Methods
 
-- `getInboundDataByChain()` - Get vault addresses and gas rates
+- `getInboundDataByChain()` - Get vault addresses and gas rates (throws if the chain is halted)
 - `swap()` - Execute swaps (used internally by TCSwap)
 
 ## Next Steps
 
 - Explore [Cross-Chain Swaps](/guides/actions/swap) using THORChain
 - Learn about [Transaction Tracking](/guides/actions/transaction)
-- Read the [THORChain Documentation](https:
+- Read the [THORChain Documentation](https://dev.thorchain.org)

@@ -1,20 +1,24 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: OKX Wallet Browser Extension Integration
 description: Complete guide to integrating OKX Wallet with TCSwap SDK v4 for multi-chain support
 ---
 
-OKX Wallet is a comprehensive multi-chain browser extension wallet that supports a wide range of blockchain networks. TCSwap SDK v4 provides extensive support for OKX Wallet across all its supported chains, making it an excellent choice for multi-chain applications.
+{/* Modifications © 2025 Horizontal Systems. */}
+
+OKX Wallet is a comprehensive multi-chain browser extension wallet that supports a wide range of blockchain networks. TCSwap supports the OKX Wallet extension through `okxWallet`, which exposes the `connectOkx` method.
 
 ## Supported Chains
 
-TCSwap supports OKX Wallet for these chains:
+`connectOkx` accepts the following chains (`OKX_SUPPORTED_CHAINS`):
 
-- **EVM Compatible**: Ethereum, Arbitrum, Aurora, Avalanche, Base, BinanceSmartChain, Gnosis, Optimism, Polygon
-- **Bitcoin**: Native Bitcoin support
-- **Cosmos Ecosystem**: Cosmos Hub
-- **Layer 1 Alternatives**: Near, Tron
-- **Testnets**: Berachain (testnet)
+- **EVM**: Arbitrum, Aurora, Avalanche, Base, Berachain, BNB Smart Chain, Ethereum, Gnosis, Monad, Optimism, Polygon, X Layer (via `window.okxwallet`)
+- **Bitcoin** (via `window.okxwallet.bitcoin`)
+- **Cosmos Hub** (via `window.okxwallet.keplr`)
+- **Tron** (via `window.okxwallet.tronLink`)
+
+NEAR is not supported through OKX Wallet. Chains outside this list are ignored with a console warning; if the required OKX provider is missing, connecting throws `wallet_okx_not_found`.
+
+For the OKX mobile in-app browser, use `evmWallet` with `WalletOption.OKX_MOBILE` (EVM chains only).
 
 ## Installation and Setup
 
@@ -22,8 +26,8 @@ TCSwap supports OKX Wallet for these chains:
 
 Install OKX Wallet from official sources:
 
-- **Chrome/Chromium**: [Chrome Web Store](https:
-- **Firefox**: [Firefox Add-ons](https:
+- **Chrome/Chromium**: [Download](https://www.okx.com/web3)
+- **Firefox**: [Download](https://www.okx.com/web3)
 - **Edge**: Available through Chrome Web Store
 - **Safari**: Available through App Store
 
@@ -44,7 +48,7 @@ OKX Wallet works in:
 - **Edge**: Full support
 - **Brave**: Full support
 
-## USwap Integration
+## TCSwap Integration
 
 ### Basic Setup
 
@@ -210,7 +214,7 @@ await uSwap.connectOkx([Chain.Ethereum]);
 
 async function sendEthereum() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+  const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
 
   try {
     console.log("Sending ETH via OKX Wallet...");
@@ -223,7 +227,7 @@ async function sendEthereum() {
     });
 
     console.log("✅ ETH transfer sent:", txHash);
-    console.log("🔍 View on Etherscan:", `https:
+    console.log("🔍 View on Etherscan:", `https://etherscan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -247,10 +251,10 @@ await uSwap.connectOkx([Chain.Ethereum]);
 async function sendERC20Token() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
 
-  const amount = AssetValue.fromChainOrSignature(
-    "ETH.USDC-0xA0B86A33E6441E89D5E4C4EDF4C8DF4C0E6C62F6",
-    100
-  );
+  const amount = AssetValue.from({
+    asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    value: 100,
+  });
 
   try {
     const txHash = await uSwap.transfer({
@@ -282,7 +286,7 @@ await uSwap.connectOkx([Chain.Bitcoin]);
 
 async function sendBitcoin() {
   const recipient = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("BTC.BTC", 0.001);
+  const amount = AssetValue.from({ asset: "BTC.BTC", value: 0.001 });
 
   try {
     console.log("Sending Bitcoin via OKX Wallet...");
@@ -295,7 +299,7 @@ async function sendBitcoin() {
     });
 
     console.log("✅ Bitcoin transfer sent:", txHash);
-    console.log("🔍 View on Blockstream:", `https:
+    console.log("🔍 View on Blockstream:", `https://blockstream.info/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -320,7 +324,7 @@ await uSwap.connectOkx([Chain.Ethereum, Chain.Polygon, Chain.Arbitrum]);
 
 async function sendOnPolygon() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("MATIC.MATIC", 1);
+  const amount = AssetValue.from({ asset: "POL.POL", value: 1 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -329,7 +333,7 @@ async function sendOnPolygon() {
     });
 
     console.log("✅ MATIC transfer sent via OKX:", txHash);
-    console.log("🔍 View on PolygonScan:", `https:
+    console.log("🔍 View on PolygonScan:", `https://polygonscan.com/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -340,7 +344,7 @@ async function sendOnPolygon() {
 
 async function sendOnArbitrum() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ARB.ETH", 0.001);
+  const amount = AssetValue.from({ asset: "ARB.ETH", value: 0.001 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -349,7 +353,7 @@ async function sendOnArbitrum() {
     });
 
     console.log("✅ Arbitrum ETH transfer sent via OKX:", txHash);
-    console.log("🔍 View on Arbiscan:", `https:
+    console.log("🔍 View on Arbiscan:", `https://arbiscan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -374,7 +378,7 @@ await uSwap.connectOkx([Chain.Cosmos]);
 
 async function sendAtom() {
   const recipient = "cosmos1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("GAIA.ATOM", 1);
+  const amount = AssetValue.from({ asset: "GAIA.ATOM", value: 1 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -384,7 +388,7 @@ async function sendAtom() {
     });
 
     console.log("✅ ATOM transfer sent via OKX:", txHash);
-    console.log("🔍 View on Mintscan:", `https:
+    console.log("🔍 View on Mintscan:", `https://www.mintscan.io/cosmos/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -409,7 +413,7 @@ await uSwap.connectOkx([Chain.Tron]);
 
 async function sendTron() {
   const recipient = "TLPwm9iGkMiTUERrQ8KXWCFzPn5Q3wz5jc";
-  const amount = AssetValue.fromChainOrSignature("TRON.TRX", 10);
+  const amount = AssetValue.from({ asset: "TRON.TRX", value: 10 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -418,7 +422,7 @@ async function sendTron() {
     });
 
     console.log("✅ TRX transfer sent via OKX:", txHash);
-    console.log("🔍 View on TronScan:", `https:
+    console.log("🔍 View on TronScan:", `https://tronscan.org/#/transaction/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -505,39 +509,6 @@ async function getBitcoinAddressInfo() {
 }
 ```
 
-### Near Protocol Integration
-
-```ts twoslash
-import { USwap, okxWallet, Chain, AssetValue } from "@tcswap/sdk";
-
-const uSwap = USwap({
-  wallets: { ...okxWallet },
-});
-
-async function nearOperations() {
-  try {
-    await uSwap.connectOkx([Chain.Near]);
-
-    const address = uSwap.getAddress(Chain.Near);
-    console.log("Near address:", address);
-
-    const recipient = "example.near";
-    const amount = AssetValue.fromChainOrSignature("NEAR.NEAR", 1);
-
-    const txHash = await uSwap.transfer({
-      assetValue: amount,
-      recipient,
-    });
-
-    console.log("✅ NEAR transfer sent:", txHash);
-    return txHash;
-  } catch (error) {
-    console.error("❌ NEAR operation failed:", error);
-    throw error;
-  }
-}
-```
-
 ## Common Troubleshooting
 
 ### Connection Issues
@@ -555,7 +526,7 @@ async function diagnosticConnection() {
 
     if (typeof window.okxwallet === 'undefined') {
       console.error("❌ OKX Wallet extension not found");
-      console.log("🔧 Install OKX Wallet from https:
+      console.log("🔧 Install OKX Wallet from https://www.okx.com/web3");
       return { success: false, error: "OKX Wallet not installed" };
     }
 
@@ -595,9 +566,8 @@ async function checkOKXProviders() {
     okxwallet: !!window.okxwallet,
     bitcoin: !!window.okxwallet?.bitcoin,
     ethereum: !!window.okxwallet?.ethereum,
-    cosmos: !!window.okxwallet?.cosmos,
-    tron: !!window.okxwallet?.tron,
-    near: !!window.okxwallet?.near,
+    cosmos: !!window.okxwallet?.keplr,
+    tron: !!window.okxwallet?.tronLink,
   };
 
   console.log("OKX Wallet providers:", providers);
@@ -610,7 +580,7 @@ async function checkOKXProviders() {
 ```ts twoslash
 async function handleTransactionErrors() {
   try {
-    const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+    const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
     const txHash = await uSwap.transfer({
       assetValue: amount,
       recipient: "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC",
@@ -659,7 +629,7 @@ async function handleNetworkIssues(chain: Chain) {
   } catch (error) {
     switch (chain) {
       case Chain.Bitcoin:
-        if (error.message.includes("bitcoin")) {
+        if (error.message.includes("wallet_okx_not_found")) {
           console.error("❌ Bitcoin connection failed");
           console.log("🔧 Ensure Bitcoin is enabled in OKX Wallet settings");
           console.log("🔧 Check if you have a Bitcoin address in OKX Wallet");
@@ -667,18 +637,10 @@ async function handleNetworkIssues(chain: Chain) {
         break;
 
       case Chain.Cosmos:
-        if (error.message.includes("cosmos")) {
+        if (error.message.includes("wallet_okx_not_found")) {
           console.error("❌ Cosmos connection failed");
           console.log("🔧 Ensure Cosmos is enabled in OKX Wallet settings");
           console.log("🔧 Check if you have imported a Cosmos account");
-        }
-        break;
-
-      case Chain.Near:
-        if (error.message.includes("near")) {
-          console.error("❌ Near connection failed");
-          console.log("🔧 Ensure Near is supported in your OKX Wallet version");
-          console.log("🔧 Check if you have a Near account configured");
         }
         break;
 
@@ -719,12 +681,6 @@ function validateAddress(address: string, chain: Chain): boolean {
     case Chain.Tron:
       return /^T[a-zA-Z0-9]{33}$/.test(address);
 
-    case Chain.Near:
-      return (
-        /^[a-z0-9_.-]+\.(near|testnet)$/.test(address) ||
-        /^[a-f0-9]{64}$/.test(address)
-      );
-
     default:
       return false;
   }
@@ -745,13 +701,13 @@ async function secureTransfer(chain: Chain, recipient: string, amount: number) {
   let assetValue: AssetValue;
   switch (chain) {
     case Chain.Ethereum:
-      assetValue = AssetValue.fromChainOrSignature("ETH.ETH", amount);
+      assetValue = AssetValue.from({ asset: "ETH.ETH", value: amount });
       break;
     case Chain.Bitcoin:
-      assetValue = AssetValue.fromChainOrSignature("BTC.BTC", amount);
+      assetValue = AssetValue.from({ asset: "BTC.BTC", value: amount });
       break;
     case Chain.Cosmos:
-      assetValue = AssetValue.fromChainOrSignature("GAIA.ATOM", amount);
+      assetValue = AssetValue.from({ asset: "GAIA.ATOM", value: amount });
       break;
 
     default:
@@ -787,10 +743,10 @@ const secureUSwap = USwap({
   config: {
 
     rpcUrls: {
-      [Chain.Ethereum]: "https:
-      [Chain.Bitcoin]: "https:
-      [Chain.Cosmos]: "https:
-      [Chain.Tron]: "https:
+      [Chain.Ethereum]: ["https://ethereum-rpc.publicnode.com"],
+      [Chain.Bitcoin]: ["https://bitcoin-rpc.publicnode.com"],
+      [Chain.Cosmos]: ["https://cosmos-rpc.publicnode.com"],
+      [Chain.Tron]: ["https://tron-rpc.publicnode.com"],
     },
     apiKeys: {
       uSwap: process.env.USWAP_API_KEY,
@@ -874,7 +830,6 @@ export function OKXWallet({ onConnect, onError }: OKXWalletProps) {
     { chain: Chain.BinanceSmartChain, name: "BSC" },
     { chain: Chain.Cosmos, name: "Cosmos" },
     { chain: Chain.Tron, name: "Tron" },
-    { chain: Chain.Near, name: "Near" },
   ];
 
   if (!isOKXInstalled) {
@@ -883,7 +838,7 @@ export function OKXWallet({ onConnect, onError }: OKXWalletProps) {
         <h3>OKX Wallet</h3>
         <p>OKX Wallet extension not detected</p>
         <a
-          href="https:
+          href="https://www.okx.com/web3"
           target="_blank"
           rel="noopener noreferrer"
         >

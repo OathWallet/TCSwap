@@ -1,10 +1,11 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Creating a TCSwap Plugin
 description: Learn how to create a custom plugin for TCSwap
 ---
 
-TCSwap plugins extend the functionality of the core library to support various DeFi protocols and services. This guide explains how to create a custom plugin for USwap.
+{/* Modifications © 2025 Horizontal Systems. */}
+
+TCSwap plugins extend the functionality of the core library to support various DeFi protocols and services. This guide explains how to create a custom plugin for TCSwap.
 
 ## Plugin Structure
 
@@ -21,34 +22,23 @@ Here's a simple example of creating a plugin:
 ```ts twoslash
 import {
   AssetValue,
-  Chain,
   USwapError,
   createPlugin,
   type EVMChain,
 } from "@tcswap/sdk";
 
-type SwapParams = {
-  route: {
-    sellAsset: string;
-    buyAsset: string;
-    sellAmount: string;
-  };
-};
-
-type QuoteParams = {
+type ExampleRoute = {
   sellAsset: string;
   buyAsset: string;
   sellAmount: string;
+  targetAddress: string;
 };
 
 export const ExamplePlugin = createPlugin({
   name: "example",
-  properties: {
-    supportedUSwapProviders: ["your-provider-name"],
-  },
   methods: ({ getWallet }) => ({
-    swap: async function exampleSwap({ route }: SwapParams) {
-      const { sellAsset, buyAsset, sellAmount } = route;
+    swap: async function exampleSwap({ route }: { route: ExampleRoute }) {
+      const { sellAsset, buyAsset, sellAmount, targetAddress } = route;
 
       if (!(sellAsset && buyAsset)) {
         throw new USwapError("core_swap_asset_not_recognized");
@@ -66,90 +56,92 @@ export const ExamplePlugin = createPlugin({
         throw new USwapError("core_wallet_connection_not_found");
       }
 
-      if ("transfer" in wallet) {
-        const txHash = await wallet.transfer({
-          assetValue,
-          from: wallet.address,
-          recipient: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-        });
-        return txHash;
-      }
-
-      throw new Error("Wallet does not support transfer");
+      return wallet.transfer({ assetValue, recipient: targetAddress });
     },
 
-    getQuote: async function getExampleQuote(params: QuoteParams) {
+    getQuote: async function getExampleQuote({
+      sellAsset,
+      buyAsset,
+      sellAmount,
+    }: Omit<ExampleRoute, "targetAddress">) {
+      // Call your service here and map its response
       return {
-        success: true,
-        data: {},
-      };
+        sellAsset,
+        buyAsset,
+        sellAmount,
+        targetAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+      } satisfies ExampleRoute;
     },
   }),
 });
 ```
+
+`createPlugin` returns an object keyed by the plugin `name` (here `{ example: ... }`). The optional `properties.supportedUSwapProviders` field takes existing `ProviderName` values; `uSwap.swap({ route })` uses it to pick the plugin that matches `route.providers[0]` when no `pluginName` is passed.
 
 ## Creating an EVM-based Swap Plugin
 
 Here's a more realistic example of an EVM-based plugin that integrates with an exchange:
 
 ```ts twoslash
-
-
 import {
   ApproveMode,
   AssetValue,
-  Chain,
-  EVMChain,
-  ProviderName,
+  EVMChains,
   USwapError,
   createPlugin,
-  type QuoteResponseRoute
+  type EVMChain,
+  type EVMTransaction,
+  type SwapKitPluginParams,
 } from "@tcswap/sdk";
 
+const ROUTER_ADDRESS = "0x1234567890123456789012345678901234567890";
 
-const approve = ({ approveMode, getWallet }) =>
-  async function({ assetValue }) {
+// uSwap.approveAssetValue(assetValue, "exchange") and
+// uSwap.isAssetValueApproved(assetValue, "exchange") call these with { assetValue }
+const approve = <T extends ApproveMode>({
+  approveMode,
+  getWallet,
+}: { approveMode: T } & SwapKitPluginParams) =>
+  async function ({ assetValue }: { assetValue: AssetValue }) {
     const evmChain = assetValue.chain as EVMChain;
+
+    if (!EVMChains.includes(evmChain) || assetValue.isGasAsset) {
+      return approveMode === ApproveMode.CheckOnly ? true : "approved";
+    }
+
     const wallet = getWallet(evmChain);
 
-    if (!wallet) {
+    if (!(wallet && assetValue.address)) {
       throw new USwapError("core_wallet_connection_not_found");
     }
 
-
-    const routerAddress = "0x1234567890123456789012345678901234567890";
-
-
-    if (approveMode === ApproveMode.CheckOnly) {
-      return wallet.isApproved({
-        amount: assetValue.getBaseValue("bigint"),
-        assetAddress: assetValue.address,
-        from: wallet.address,
-        spenderAddress: routerAddress,
-      });
-    }
-
-    return wallet.approve({
+    const params = {
       amount: assetValue.getBaseValue("bigint"),
       assetAddress: assetValue.address,
       from: wallet.address,
-      spenderAddress: routerAddress,
-    });
+      spenderAddress: ROUTER_ADDRESS,
+    };
+
+    return approveMode === ApproveMode.CheckOnly
+      ? wallet.isApproved(params)
+      : wallet.approve(params);
   };
 
+type ExchangeRoute = {
+  sellAsset: string;
+  buyAsset: string;
+  sellAmount: string;
+  expectedBuyAmount: string;
+  tx: EVMTransaction;
+};
 
 export const ExchangePlugin = createPlugin({
   name: "exchange",
-  properties: {
-    supportedUSwapProviders: [ProviderName.CUSTOM_EXCHANGE],
-  },
   methods: ({ getWallet }) => ({
-
     approveAssetValue: approve({ approveMode: ApproveMode.Approve, getWallet }),
     isAssetValueApproved: approve({ approveMode: ApproveMode.CheckOnly, getWallet }),
 
-
-    swap: async function exchangeSwap({ route }) {
+    swap: async function exchangeSwap({ route }: { route: ExchangeRoute }) {
       const { tx, sellAsset } = route;
 
       if (!tx) {
@@ -158,7 +150,7 @@ export const ExchangePlugin = createPlugin({
 
       const assetValue = await AssetValue.from({
         asset: sellAsset,
-        asyncTokenLookup: true
+        asyncTokenLookup: true,
       });
 
       const evmChain = assetValue.chain as EVMChain;
@@ -168,70 +160,50 @@ export const ExchangePlugin = createPlugin({
         throw new USwapError("core_wallet_connection_not_found");
       }
 
-
       const { from, to, data, value } = tx;
       return wallet.sendTransaction({
         from,
         to,
         data,
-        value: BigInt(value || 0)
+        value: BigInt(value || 0),
       });
     },
-
 
     getQuote: async function getExchangeQuote({
       sellAsset,
       buyAsset,
       sellAmount,
       slippage = 1,
-    }) {
-      try {
+    }: {
+      sellAsset: string;
+      buyAsset: string;
+      sellAmount: string;
+      slippage?: number;
+    }): Promise<ExchangeRoute> {
+      const response = await fetch("https://api.example-exchange.com/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sellAsset, buyAsset, sellAmount, slippage }),
+      });
 
-        const response = await fetch("https:
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sellAsset,
-            buyAsset,
-            sellAmount,
-            slippage,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const quoteData = await response.json();
-
-
-        return {
-          success: true,
-          data: {
-            routes: [
-              {
-                sellAsset,
-                buyAsset,
-                sellAmount,
-                buyAmount: quoteData.buyAmount,
-
-                tx: {
-                  from: quoteData.from,
-                  to: quoteData.to,
-                  data: quoteData.data,
-                  value: quoteData.value,
-                },
-                providers: [ProviderName.CUSTOM_EXCHANGE],
-              } as QuoteResponseRoute,
-            ],
-          },
-        };
-      } catch (error) {
-        return {
-          success: false,
-          error: String(error),
-        };
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
       }
+
+      const quoteData = await response.json();
+
+      return {
+        sellAsset,
+        buyAsset,
+        sellAmount,
+        expectedBuyAmount: quoteData.buyAmount,
+        tx: {
+          from: quoteData.from,
+          to: quoteData.to,
+          data: quoteData.data,
+          value: quoteData.value,
+        },
+      };
     },
   }),
 });
@@ -239,33 +211,32 @@ export const ExchangePlugin = createPlugin({
 
 ## Using Your Plugin with TCSwap
 
-Once you've created your plugin, you can use it with the TCSwap client:
+Once you've created your plugin, spread it into `plugins` and access it on the client by its `name`:
 
 ```ts twoslash
-import { createUSwap, Chain, keystoreWallet } from "@tcswap/sdk";
+import { createUSwap, Chain } from "@tcswap/sdk";
 
-import { ExamplePlugin } from "./example-plugin";
+import { ExchangePlugin } from "./exchange-plugin";
 
+// createUSwap merges your plugins/wallets with the default ones (incl. keystore)
 const uSwap = createUSwap({
-  plugins: { examplePlugin: ExamplePlugin },
-  wallets: { ...keystoreWallet },
+  plugins: { ...ExchangePlugin },
 });
 
 async function connectAndUsePlugin() {
-  await uSwap.connectKeystore(
-    [Chain.Bitcoin, Chain.Ethereum],
-    "your secret phrase here"
-  );
+  await uSwap.connectKeystore([Chain.Ethereum], "your secret phrase here");
 
-  const quoteResponse = await uSwap.examplePlugin.getQuote({
+  const route = await uSwap.exchange.getQuote({
     sellAsset: "ETH.ETH",
     buyAsset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     sellAmount: "0.1",
   });
 
-  if (quoteResponse.success) {
-    const txHash = await uSwap.swap({ route: quoteResponse.data.routes[0] });
-  }
+  // Call the plugin directly...
+  const txHash = await uSwap.exchange.swap({ route });
+
+  // ...or route through uSwap.swap by plugin name
+  // await uSwap.swap({ route, pluginName: "exchange" });
 }
 ```
 
@@ -280,4 +251,4 @@ When creating a TCSwap plugin, follow these best practices:
 5. **Validation**: Validate inputs to prevent runtime errors
 6. **Security**: Be careful with sensitive data and external API calls
 
-By following this guide, you should be able to create, test, and integrate custom plugins with USwap.
+By following this guide, you should be able to create, test, and integrate custom plugins with TCSwap.

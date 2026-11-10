@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Zcash Integration
 description: Complete guide to integrating Zcash transparent addresses with TCSwap
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 TCSwap provides comprehensive support for Zcash through the UTXO toolbox with specialized handling for Zcash transparent addresses. This guide covers everything you need to know about working with Zcash in your applications.
 
@@ -10,12 +11,12 @@ TCSwap provides comprehensive support for Zcash through the UTXO toolbox with sp
 
 The Zcash integration in TCSwap supports:
 
-- **Transparent addresses only** (t1... for mainnet, t3... for testnet)
+- **Transparent addresses only** (t1... P2PKH and t3... P2SH; TEX `tex1...` recipients are paid via their transparent equivalent)
 - **Custom address generation** with 2-byte prefixes
 - **PSBT-based transaction building** for compatibility
 - **Full UTXO management** and fee estimation
 - **Memo support** via OP_RETURN outputs
-- **bitcoinjs-lib + ecpair** for cryptographic operations
+- **@bitgo/utxo-lib** for Zcash PSBTs (NU6.1 transaction version) and key handling
 
 ## Key Features
 
@@ -34,17 +35,17 @@ async function validateZcashAddresses() {
   );
   console.log("Mainnet address valid:", mainnetValid);
 
-  const testnetValid = zcashToolbox.validateAddress(
+  const p2shValid = zcashToolbox.validateAddress(
     "t3Vz22vK5z2LcKEdg16Yv4FFneEL1zg9ojd"
   );
-  console.log("Testnet address valid:", testnetValid);
+  console.log("P2SH address valid:", p2shValid);
 
   const shieldedValid = zcashToolbox.validateAddress(
     "zs1z7rejlpsa98s2rrrfkwmaxu2xldqmfq5nj2m3hq6s7r8qjq8eqqqq9p4e7x"
   );
   console.log("Shielded address valid:", shieldedValid);
 
-  return { mainnetValid, testnetValid, shieldedValid };
+  return { mainnetValid, p2shValid, shieldedValid };
 }
 ```
 
@@ -64,14 +65,14 @@ async function generateZcashAddress() {
   const address = await zcashToolbox.getAddress();
   console.log("Generated address:", address);
 
-  const keys = await zcashToolbox.createKeysForPath({
+  const secondAccountToolbox = await getUtxoToolbox(Chain.Zcash, {
     phrase:
       "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
-    derivationPath: "m/44'/133'/0'/0/0",
+    index: 1,
   });
 
-  const customAddress = zcashToolbox.getAddressFromKeys(keys);
-  console.log("Custom path address:", customAddress);
+  const customAddress = await secondAccountToolbox.getAddress();
+  console.log("Index 1 address:", customAddress);
 
   return { address, customAddress };
 }
@@ -110,7 +111,7 @@ async function zcashKeyManagement() {
 
   const address = await zcashToolbox.getAddress();
 
-  const keys = await zcashToolbox.createKeysForPath({
+  const keys = zcashToolbox.createKeysForPath({
     phrase:
       "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
     derivationPath: "m/44'/133'/0'/0/0",
@@ -120,7 +121,7 @@ async function zcashKeyManagement() {
   const privateKey = keys.privateKey;
   const wifKey = keys.toWIF();
 
-  const wifFromMnemonic = await zcashToolbox.getPrivateKeyFromMnemonic({
+  const wifFromMnemonic = zcashToolbox.getPrivateKeyFromMnemonic({
     phrase:
       "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
     derivationPath: "m/44'/133'/0'/0/0",
@@ -209,7 +210,7 @@ async function buildZcashTransaction() {
 
   const feeRates = await zcashToolbox.getFeeRates();
 
-  const { psbt, utxos, inputs } = await zcashToolbox.createTransaction({
+  const { psbt, inputs, outputs } = await zcashToolbox.createTransaction({
     recipient: "t1XVXWCvpMgBvUaed4XDqWtgQgJSu1Ghz7F",
     assetValue: AssetValue.from({ chain: Chain.Zcash, value: "0.002" }),
     sender: senderAddress,
@@ -218,9 +219,9 @@ async function buildZcashTransaction() {
   });
 
   console.log("PSBT created with", inputs.length, "inputs");
-  console.log("UTXOs used:", utxos.length);
+  console.log("Outputs:", outputs.length);
 
-  return { psbt, utxos, inputs };
+  return { psbt, inputs, outputs };
 }
 ```
 
@@ -312,17 +313,18 @@ async function getZcashBalance() {
 
   const address = "t1XVXWCvpMgBvUaed4XDqWtgQgJSu1Ghz7F";
 
-  const balance = await zcashToolbox.getBalance(address);
-  console.log("Balance:", balance.toString(), "ZEC");
+  const balances = await zcashToolbox.getBalance(address);
+  const zecBalance = balances.find((asset) => asset.isGasAsset);
+  console.log("Balance:", zecBalance?.getValue("string"), "ZEC");
 
-  return balance;
+  return zecBalance;
 }
 ```
 
 ### Advanced UTXO Operations
 
 ```ts twoslash
-import { Chain, getUtxoToolbox } from "@tcswap/sdk";
+import { AssetValue, Chain, FeeOption, getUtxoToolbox } from "@tcswap/sdk";
 
 async function analyzeUtxos() {
   const zcashToolbox = await getUtxoToolbox(Chain.Zcash);
@@ -346,34 +348,21 @@ async function analyzeUtxos() {
 
 ## Network Configuration
 
-### Mainnet vs Testnet
+### Address Prefix
 
-The Zcash toolbox automatically detects network based on TCSwap configuration:
+Zcash support targets mainnet. When deriving from a phrase, the toolbox encodes the address with the mainnet `t1` prefix; with `envs.isStagenet` enabled it uses the testnet prefix (`tm...`) instead. Balances, UTXOs and broadcasting always go through the mainnet UTXO data provider.
 
 ```ts twoslash
 import { Chain, USwapConfig, getUtxoToolbox } from "@tcswap/sdk";
 
-USwapConfig.set({
-  envs: { isStagenet: false },
-});
+USwapConfig.setApiKey("blockchair", "your-blockchair-api-key");
 
-const mainnetToolbox = await getUtxoToolbox(Chain.Zcash, {
+const zcashToolbox = await getUtxoToolbox(Chain.Zcash, {
   phrase: "your mnemonic here",
 });
 
-const mainnetAddress = await mainnetToolbox.getAddress();
-console.log("Mainnet address:", mainnetAddress);
-
-USwapConfig.set({
-  envs: { isStagenet: true },
-});
-
-const testnetToolbox = await getUtxoToolbox(Chain.Zcash, {
-  phrase: "your mnemonic here",
-});
-
-const testnetAddress = await testnetToolbox.getAddress();
-console.log("Testnet address:", testnetAddress);
+const address = await zcashToolbox.getAddress();
+console.log("Mainnet address:", address);
 ```
 
 ## Error Handling and Best Practices
@@ -397,7 +386,7 @@ async function handleZcashErrors() {
     return txHash;
   } catch (error) {
     if (error instanceof USwapError) {
-      switch (error.errorKey) {
+      switch (error.message.split(":")[0]) {
         case "toolbox_utxo_insufficient_balance":
           console.error("Insufficient balance for transaction");
           break;
@@ -434,10 +423,10 @@ async function validateInputs() {
       return false;
     }
 
-    const isMainnet = address.startsWith("t1");
-    const isTestnet = address.startsWith("t3");
+    const isTransparent = address.startsWith("t1") || address.startsWith("t3");
+    const isTex = address.toLowerCase().startsWith("tex1");
 
-    if (!(isMainnet || isTestnet)) {
+    if (!(isTransparent || isTex)) {
       console.warn(`Unsupported address format: ${address}`);
       return false;
     }
@@ -460,7 +449,7 @@ async function validateInputs() {
 ### Cross-Chain Operations
 
 ```ts twoslash
-import { AssetValue, Chain, getUtxoToolbox, getEvmToolbox } from "@tcswap/sdk";
+import { Chain, getUtxoToolbox } from "@tcswap/sdk";
 
 async function crossChainExample() {
   const zcashToolbox = await getUtxoToolbox(Chain.Zcash, {
@@ -474,11 +463,11 @@ async function crossChainExample() {
   const zcashAddress = await zcashToolbox.getAddress();
   const btcAddress = await btcToolbox.getAddress();
 
-  const zcashBalance = await zcashToolbox.getBalance(zcashAddress);
-  const btcBalance = await btcToolbox.getBalance(btcAddress);
+  const [zcashBalance] = await zcashToolbox.getBalance(zcashAddress);
+  const [btcBalance] = await btcToolbox.getBalance(btcAddress);
 
-  console.log("Zcash balance:", zcashBalance.toString());
-  console.log("Bitcoin balance:", btcBalance.toString());
+  console.log("Zcash balance:", zcashBalance?.getValue("string"));
+  console.log("Bitcoin balance:", btcBalance?.getValue("string"));
 
   return { zcashBalance, btcBalance };
 }
@@ -496,7 +485,7 @@ async function crossChainExample() {
 ### Performance Considerations
 
 ```ts twoslash
-import { Chain, getUtxoToolbox } from "@tcswap/sdk";
+import { AssetValue, Chain, getUtxoToolbox } from "@tcswap/sdk";
 
 async function optimizePerformance() {
   const zcashToolbox = await getUtxoToolbox(Chain.Zcash);
@@ -520,7 +509,7 @@ async function optimizePerformance() {
 
 TCSwap has evolved to use modern cryptographic libraries for Zcash operations:
 
-- **Current**: Uses `bitcoinjs-lib + ecpair` for better compatibility and smaller bundles
+- **Current**: Uses `@bitgo/utxo-lib` (Zcash PSBTs and ECPair) with `@scure/bip32`/`@scure/bip39` for key derivation
 - **Impact**: No breaking changes to public API, improved performance and bundle size
 
 ### API Compatibility
@@ -535,7 +524,7 @@ const zcashToolbox = await getUtxoToolbox(Chain.Zcash, {
 });
 
 const address = await zcashToolbox.getAddress();
-const balance = await zcashToolbox.getBalance(address);
+const balances = await zcashToolbox.getBalance(address);
 ```
 
 The architecture updates are transparent to users and provide:

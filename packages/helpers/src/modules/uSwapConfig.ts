@@ -72,15 +72,15 @@ const initialState = {
   chains: AllChains,
   endpoints: {} as CustomApiEndpoints,
   envs: {
-    apiUrl: "https://swap-api.unstoppable.money",
+    apiUrl: "https://api.thorchain.org/v1",
     blockchairApiUrl: null as string | null,
-    devApiUrl: "https://swap-api-dev.unstoppable.money",
+    devApiUrl: "https://api.thorchain.org/v1",
     experimental_apiKey: null as string | null,
     experimental_apiUrlQuote: null as string | null,
     experimental_apiUrlSwap: null as string | null,
     isDev: false,
     isStagenet: false,
-    memolessApiUrl: "https://swap.unstoppable.money/memoless/api/v1",
+    memolessApiUrl: "https://api.thorchain.org/memoless/api/v1",
   },
   feeMultipliers: undefined as FeeMultiplierConfig | undefined,
   integrations: {
@@ -97,6 +97,10 @@ const initialState = {
   wallets: Object.values(WalletOption),
 };
 type USwapState = typeof initialState;
+export type RequestOptionsInput = {
+  retry?: Partial<USwapState["requestOptions"]["retry"]>;
+  timeoutMs?: USwapState["requestOptions"]["timeoutMs"];
+};
 
 export type USwapConfigState = {
   apiKeys?: Partial<USwapState["apiKeys"]>;
@@ -115,7 +119,7 @@ type USwapConfigStore = USwapState & {
   setEnv: <T extends keyof USwapState["envs"]>(key: T, value: USwapState["envs"][T]) => void;
   setEndpoint: <T extends keyof CustomApiEndpoints>(key: T, endpoint: CustomApiEndpoints[T]) => void;
   setRpcUrl: (chain: keyof USwapState["rpcUrls"], url: string[]) => void;
-  setRequestOptions: (options: Partial<USwapState["requestOptions"]>) => void;
+  setRequestOptions: (options: RequestOptionsInput) => void;
   setIntegrationConfig: (
     integration: keyof USwapState["integrations"],
     config: USwapConfigIntegrations[keyof USwapConfigIntegrations],
@@ -184,7 +188,7 @@ export const USwapConfig = {
     integration: T,
     config: USwapConfigIntegrations[T],
   ) => useUSwapStore.getState().setIntegrationConfig(integration, config),
-  setRequestOptions: (options: USwapState["requestOptions"]) => useUSwapStore.getState().setRequestOptions(options),
+  setRequestOptions: (options: RequestOptionsInput) => useUSwapStore.getState().setRequestOptions(options),
   setRpcUrl: <T extends keyof USwapState["rpcUrls"]>(chain: T, urls: string[]) =>
     useUSwapStore.getState().setRpcUrl(chain, urls),
 };

@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Next.js
 description: A guide to integrate TCSwap with Next.js applications.
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
 import TryItYourself from "../../../../components/TryItYourself.astro";
@@ -17,9 +18,9 @@ This guide will help you integrate TCSwap into your Next.js application with pro
 >
   <PlaygroundLinks
     compact={true}
-    nextjsUrl="https://github.com/horizontalsystems/USwap/tree/develop/playgrounds/nextjs"
-    stackblitzUrl="https://stackblitz.com/github/horizontalsystems/USwap/tree/main/playgrounds/nextjs"
-    codesandboxUrl="https://codesandbox.io/p/github/horizontalsystems/USwap/tree/main/playgrounds/nextjs"
+    nextjsUrl="https://github.com/thorchain/TCSwap/tree/main/playgrounds/nextjs"
+    stackblitzUrl="https://stackblitz.com/github/thorchain/TCSwap/tree/main/playgrounds/nextjs"
+    codesandboxUrl="https://codesandbox.io/p/github/thorchain/TCSwap/tree/main/playgrounds/nextjs"
   />
 </TryItYourself>
 
@@ -214,7 +215,7 @@ export function WalletButton() {
       );
 
       setIsConnected(true);
-      const ethAddress = await uSwapClient.getAddress(Chain.Ethereum);
+      const ethAddress = uSwapClient.getAddress(Chain.Ethereum);
       setAddress(ethAddress);
     } catch (error) {
       console.error("Failed to connect wallet:", error);
@@ -224,7 +225,7 @@ export function WalletButton() {
   };
 
   const disconnectWallet = () => {
-    uSwapClient.disconnectWallet(Chain.Ethereum);
+    uSwapClient.disconnectChain(Chain.Ethereum);
     setIsConnected(false);
     setAddress("");
   };
@@ -256,10 +257,9 @@ For more complex applications, use a context provider:
 "use client";
 
 import { createContext, useContext, ReactNode } from "react";
-import { USwap } from "@tcswap/sdk";
 import { uSwapClient } from "@/lib/uSwap";
 
-const uSwapContext = createContext<USwap | null>(null);
+const USwapContext = createContext<typeof uSwapClient | null>(null);
 
 export function USwapProvider({ children }: { children: ReactNode }) {
   return (
@@ -312,21 +312,32 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id_here
 TCSwap operations that require wallet connections must be performed in client components. For server components, you can only use read-only operations:
 
 ```tsx
-import { AssetValue, USwapApi } from "@tcswap/sdk";
+import { USwapApi } from "@tcswap/sdk";
 
-export async function TokenPrice({ symbol }: { symbol: string }) {
-  const price = await USwapApi.getPrice({
-    identifier: symbol,
-    currency: "USD",
+export async function TokenPrice({ identifier }: { identifier: string }) {
+  const [price] = await USwapApi.getPrice({
+    tokens: [{ identifier }],
+    metadata: false,
   });
 
-  return <div>Price: ${price.price_usd}</div>;
+  return <div>Price: ${price?.price_usd}</div>;
 }
 ```
 
 ## Cosmos Wallets Integration
 
-For Cosmos ecosystem wallets like Keplr and Cosmostation, create a specialized component:
+For Cosmos ecosystem wallets like Keplr and Cosmostation, create a specialized component. Cosmostation is not part of the SDK's default wallets, so register it when creating your client (requires `@tcswap/wallets`):
+
+```typescript
+// @noErrorValidation
+
+import { createUSwap } from "@tcswap/sdk";
+import { cosmostationWallet } from "@tcswap/wallets/cosmostation";
+
+export const uSwapClient = createUSwap({
+  wallets: { ...cosmostationWallet },
+});
+```
 
 ```tsx
 "use client";
@@ -355,7 +366,7 @@ export function CosmosWalletButton() {
 
       for (const chain of chains) {
         try {
-          const address = await uSwapClient.getAddress(chain);
+          const address = uSwapClient.getAddress(chain);
           if (address) {
             newAddresses[chain] = address;
           }
@@ -372,7 +383,7 @@ export function CosmosWalletButton() {
 
   const disconnectWallet = () => {
     Object.keys(addresses).forEach((chain) => {
-      uSwapClient.disconnectWallet(chain as Chain);
+      uSwapClient.disconnectChain(chain as Chain);
     });
     setIsConnected(false);
     setAddresses({});
@@ -408,4 +419,4 @@ The webpack configuration should handle WebAssembly modules. If issues persist, 
 
 ## Example Repository
 
-For a complete working example, check out the [Next.js playground](https:
+For a complete working example, check out the [Next.js playground](https://github.com/thorchain/TCSwap/tree/main/playgrounds/nextjs).

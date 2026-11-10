@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Performing Swaps
 description: How to perform token swaps across different chains with TCSwap
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import InteractiveExample from "../../../../components/InteractiveExample.astro";
 import TryItYourself from "../../../../components/TryItYourself.astro";
@@ -47,8 +48,8 @@ The typical flow for performing a swap consists of these steps:
     compact={true}
     title=""
     description=""
-    stackblitzUrl="https://stackblitz.com/github/uswap/uswap/tree/develop/playgrounds/nextjs"
-    codesandboxUrl="https://codesandbox.io/p/github/uswap/uswap/develop/playgrounds/nextjs"
+    stackblitzUrl="https://stackblitz.com/github/thorchain/TCSwap/tree/main/playgrounds/nextjs"
+    codesandboxUrl="https://codesandbox.io/p/github/thorchain/TCSwap/tree/main/playgrounds/nextjs"
   />
 </TryItYourself>
 
@@ -133,11 +134,11 @@ async function getSwapQuote() {
       slippage: 1,
     });
 
-    if (!quoteResponse.success) {
+    const routes = quoteResponse.routes;
+
+    if (!routes.length) {
       throw new Error(`Failed to get quote: ${quoteResponse.error}`);
     }
-
-    const routes = quoteResponse.data.routes;
 
     return routes;
   } catch (error) {
@@ -157,7 +158,7 @@ async function getProviderQuote() {
     sourceAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
   });
 
-  return quoteResponse.data?.routes || [];
+  return quoteResponse.routes;
 }
 ```
 
@@ -172,11 +173,13 @@ import {
   AssetValue,
   Chain,
   FeeOption,
-  ProviderName,
   USwapApi,
   USwap,
   evmWallet,
   EVMPlugin,
+  getExplorerTxUrl,
+  ProviderName,
+  type EVMTransaction,
 } from "@tcswap/sdk";
 
 const uSwap = USwap({
@@ -194,13 +197,15 @@ async function executeSwap() {
       sellAmount: "0.1",
       sourceAddress: uSwap.getAddress(Chain.Ethereum),
       slippage: 1,
+      // Only EVM DEX routes: this client registers just the EVM plugin
+      providers: [ProviderName.UNISWAP_V3],
     });
 
-    if (!quoteResponse.success || !quoteResponse.data.routes.length) {
+    const [selectedRoute] = quoteResponse.routes;
+
+    if (!selectedRoute) {
       throw new Error("No swap routes available");
     }
-
-    const selectedRoute = quoteResponse.data.routes[0];
 
     const assetValue = await AssetValue.from({
       asset: selectedRoute.sellAsset,
@@ -208,14 +213,14 @@ async function executeSwap() {
       asyncTokenLookup: true,
     });
 
-    if (!assetValue.isGasAsset && selectedRoute.tx) {
-      const isApproved = await uSwap.isAssetValueApproved(
-        assetValue,
-        selectedRoute.tx.from
-      );
+    // For ERC20 sells, the contract the swap tx calls must be approved to spend the token
+    const spender = (selectedRoute.tx as EVMTransaction | undefined)?.to;
+
+    if (!assetValue.isGasAsset && spender) {
+      const isApproved = await uSwap.isAssetValueApproved(assetValue, spender);
 
       if (!isApproved) {
-        await uSwap.approveAssetValue(assetValue, selectedRoute.tx.from);
+        await uSwap.approveAssetValue(assetValue, spender);
       }
     }
 
@@ -224,7 +229,7 @@ async function executeSwap() {
       feeOptionKey: FeeOption.Fast,
     })) as string;
 
-    const txUrl = uSwap.getExplorerTxUrl({
+    const txUrl = getExplorerTxUrl({
       chain: assetValue.chain as Chain,
       txHash,
     });
@@ -260,11 +265,11 @@ async function executeSwap() {
       sourceAddress: uSwap.getAddress(Chain.Ethereum),
     });
 
-    if (!quoteResponse.success || !quoteResponse.data.routes.length) {
+    const [selectedRoute] = quoteResponse.routes;
+
+    if (!selectedRoute) {
       throw new Error("No swap routes available");
     }
-
-    const selectedRoute = quoteResponse.data.routes[0];
 
     const txHash = await uSwap.swap({
       route: selectedRoute,
@@ -301,7 +306,7 @@ const uSwap = USwap({
   config: {
     integrations: {
       chainflip: {
-        brokerUrl: "https:
+        brokerUrl: "https://your-chainflip-broker-url",
       },
     },
   },
@@ -323,12 +328,11 @@ async function crossChainSwap() {
       destinationAddress: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
     });
 
-    if (!quoteResponse.success || !quoteResponse.data.routes.length) {
+    const [route] = quoteResponse.routes;
+
+    if (!route) {
       throw new Error("No cross-chain swap routes available");
     }
-
-
-    const route = quoteResponse.data.routes[0];
 
 
     const txHash = await uSwap.swap({
@@ -381,11 +385,11 @@ async function setupAndSwap() {
       destinationAddress: uSwap.getAddress(Chain.THORChain),
     });
 
-    if (!quoteResponse.success || !quoteResponse.data.routes.length) {
+    const [route] = quoteResponse.routes;
+
+    if (!route) {
       throw new Error("No THORChain swap routes available");
     }
-
-    const route = quoteResponse.data.routes[0];
 
     const txHash = await uSwap.swap({
       route,
@@ -430,11 +434,11 @@ async function estimateSwapFees() {
       sourceAddress: uSwap.getAddress(Chain.Ethereum),
     });
 
-    if (!quoteResponse.success || !quoteResponse.data.routes.length) {
+    const [route] = quoteResponse.routes;
+
+    if (!route) {
       throw new Error("No swap routes available");
     }
-
-    const route = quoteResponse.data.routes[0];
 
     const assetValue = await AssetValue.from({
       asset: route.sellAsset,
@@ -485,7 +489,7 @@ async function advancedSwap() {
   try {
     const quoteResponse = await USwapApi.getSwapQuote({
       sellAsset: "ETH.ETH",
-      buyAsset: "BNB.BNB",
+      buyAsset: "BSC.BNB",
       sellAmount: "0.5",
 
       providers: [ProviderName.THORCHAIN, ProviderName.CHAINFLIP],
@@ -496,11 +500,11 @@ async function advancedSwap() {
       slippage: 2.5,
     });
 
-    if (!quoteResponse.success || !quoteResponse.data.routes.length) {
+    const [route] = quoteResponse.routes;
+
+    if (!route) {
       throw new Error("No advanced swap routes available");
     }
-
-    const route = quoteResponse.data.routes[0];
 
     const txHash = await uSwap.swap({
       route,

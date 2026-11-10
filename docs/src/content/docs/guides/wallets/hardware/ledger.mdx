@@ -1,26 +1,29 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Ledger Hardware Wallet Integration
 description: Complete guide to integrating Ledger hardware wallets with TCSwap SDK v4
 ---
 
-Ledger hardware wallets provide industry-leading security for cryptocurrency transactions by keeping private keys isolated on a dedicated device. TCSwap SDK v4 offers comprehensive support for all Ledger devices across multiple blockchain networks.
+{/* Modifications © 2025 Horizontal Systems. */}
+
+Ledger hardware wallets provide industry-leading security for cryptocurrency transactions by keeping private keys isolated on a dedicated device. TCSwap supports Ledger devices through `ledgerWallet`, which exposes the `connectLedger` method and talks to the device over WebUSB.
 
 ## Supported Chains
 
-TCSwap supports Ledger devices on these chains:
+`connectLedger` accepts the following chains (`LEDGER_SUPPORTED_CHAINS`):
 
-- **EVM Compatible**: Ethereum, Arbitrum, Aurora, Avalanche, Base, BinanceSmartChain, Gnosis, Optimism, Polygon
-- **UTXO Chains**: Bitcoin, Bitcoin Cash, Dash, Dogecoin, Litecoin
-- **Cosmos Ecosystem**: Cosmos, THORChain
-- **Other Chains**: Near, Ripple, Tron
+- **EVM**: Arbitrum, Aurora, Avalanche, Base, BNB Smart Chain, Ethereum, Gnosis, Monad, Optimism, Polygon, X Layer
+- **UTXO**: Bitcoin, Bitcoin Cash, Dash, Dogecoin, Litecoin, Zcash
+- **Cosmos ecosystem**: Cosmos Hub, THORChain
+- **Other**: NEAR, Ripple (XRP), Tron
+
+**One chain per call:** `connectLedger(chains, derivationPath?)` connects only the first supported chain in `chains` (each chain needs its own app open on the device, and the optional `derivationPath` applies to that one chain). Call it once per chain to connect several.
 
 ## Installation and Setup
 
 ### 1. Hardware Requirements
 
 - Any Ledger device (Nano S, Nano S Plus, Nano X, Stax)
-- USB connection or Bluetooth (Nano X/Stax only)
+- USB connection
 - Latest firmware installed via Ledger Live
 
 ### 2. Install Required Apps
@@ -46,17 +49,7 @@ Install the necessary applications on your Ledger device using Ledger Live:
 
 ### 3. Browser Setup
 
-Ensure your browser supports WebUSB/WebHID:
-
-- **Chrome/Chromium**: Full support
-- **Firefox**: Requires configuration
-- **Safari**: Not supported
-
-For Firefox, enable WebUSB in `about:config`:
-
-```
-dom.webusb.enabled = true
-```
+The Ledger integration uses WebUSB (`navigator.usb`), so it needs a Chromium-based browser (Chrome, Edge, Brave, etc.) and a USB connection. Firefox and Safari do not support WebUSB, and Bluetooth is not used.
 
 ## TCSwap Integration
 
@@ -214,7 +207,7 @@ await uSwap.connectLedger([Chain.Bitcoin]);
 
 async function sendBitcoin() {
   const recipient = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("BTC.BTC", 0.001);
+  const amount = AssetValue.from({ asset: "BTC.BTC", value: 0.001 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -245,7 +238,7 @@ await uSwap.connectLedger([Chain.Ethereum]);
 
 async function sendEthereum() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+  const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -263,10 +256,10 @@ async function sendEthereum() {
 
 async function sendERC20Token() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature(
-    "ETH.USDC-0xA0B86A33E6441E89D5E4C4EDF4C8DF4C0E6C62F6",
-    100
-  );
+  const amount = AssetValue.from({
+    asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    value: 100,
+  });
 
   try {
     const txHash = await uSwap.transfer({
@@ -296,7 +289,7 @@ await uSwap.connectLedger([Chain.Cosmos]);
 
 async function sendCosmos() {
   const recipient = "cosmos1xy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("GAIA.ATOM", 1);
+  const amount = AssetValue.from({ asset: "GAIA.ATOM", value: 1 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -321,13 +314,13 @@ async function sendCosmos() {
 For Bitcoin transactions, ensure you have the Bitcoin app installed on your Ledger:
 
 ```ts twoslash
-import { USwap, ledgerWallet, Chain, FeeOption } from "@tcswap/sdk";
+import { USwap, ledgerWallet, Chain, AssetValue, FeeOption } from "@tcswap/sdk";
 
 const uSwap = USwap({ wallets: { ...ledgerWallet } });
 await uSwap.connectLedger([Chain.Bitcoin]);
 
 async function bitcoinTransactionWithCustomFee() {
-  const amount = AssetValue.fromChainOrSignature("BTC.BTC", 0.001);
+  const amount = AssetValue.from({ asset: "BTC.BTC", value: 0.001 });
 
   const wallet = await uSwap.getWalletWithBalance(Chain.Bitcoin);
   const feeRates = await wallet.getFeeRates();
@@ -495,7 +488,7 @@ async function verifyAddressOnDevice() {
 }
 
 async function secureTransaction() {
-  const amount = AssetValue.fromChainOrSignature("BTC.BTC", 0.001);
+  const amount = AssetValue.from({ asset: "BTC.BTC", value: 0.001 });
   const recipient = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
 
   console.log("📋 Transaction Details:");
@@ -534,57 +527,8 @@ const uSwap = USwap({
   config: {
 
     rpcUrls: {
-      [Chain.Ethereum]: "https:
-      [Chain.Bitcoin]: "https:
-    },
-  },
-  wallets: { ...ledgerWallet },
-});
-```
-
-## Advanced Usage
-
-### Multiple Devices
-
-```ts twoslash
-class LedgerManager {
-  private connections: Map<string, any> = new Map();
-
-  async connectDevice(deviceId: string, chains: Chain[]) {
-    const uSwap = USwap({ wallets: { ...ledgerWallet } });
-
-    try {
-      await uSwap.connectLedger(chains);
-      this.connections.set(deviceId, uswap);
-      return { success: true };
-    } catch (error) {
-      return { success: false, error };
-    }
-  }
-
-  getConnection(deviceId: string) {
-    return this.connections.get(deviceId);
-  }
-
-  disconnectDevice(deviceId: string) {
-    const connection = this.connections.get(deviceId);
-    if (connection) {
-      connection.disconnectAll();
-      this.connections.delete(deviceId);
-    }
-  }
-}
-```
-
-### Custom Transport Configuration
-
-```ts twoslash
-import { USwap, ledgerWallet, Chain } from "@tcswap/sdk";
-
-const uSwap = USwap({
-  config: {
-    ledger: {
-      timeout: 30000,
+      [Chain.Ethereum]: ["https://ethereum-rpc.publicnode.com"],
+      [Chain.Bitcoin]: ["https://bitcoin-rpc.publicnode.com"],
     },
   },
   wallets: { ...ledgerWallet },

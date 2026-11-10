@@ -1,0 +1,142 @@
+---
+title: Polkadot & Substrate Integration
+description: Use the TCSwap Substrate toolbox for Polkadot (DOT) and Chainflip (FLIP) balances, transfers and address handling
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+TCSwap supports Substrate-based chains through the Substrate toolbox, built on `@polkadot/api`.
+
+## Supported chains
+
+| Chain | `Chain` value | Native asset | Decimals | SS58 prefix |
+| --- | --- | --- | --- | --- |
+| Polkadot | `Chain.Polkadot` (`"DOT"`) | DOT | 10 | `0` |
+| Chainflip | `Chain.Chainflip` (`"FLIP"`) | FLIP | 18 | `2112` |
+
+These two make up `SubstrateChains`. A generic Substrate network (prefix `42`) is also defined as `SubstrateNetwork.GENERIC` and can be selected with `generic: true`.
+
+Wallets: keystore (`connectKeystore`) and Talisman support both chains. Polkadot.js and Vultisig support Polkadot.
+
+## Import
+
+```ts
+import {
+  ChainflipToolbox,
+  getSubstrateToolbox,
+  PolkadotToolbox,
+  substrateValidateAddress,
+} from "@tcswap/toolboxes/substrate";
+```
+
+`@tcswap/sdk` re-exports everything from `@tcswap/toolboxes/substrate`, so the same names can be imported from `@tcswap/sdk`.
+
+## Creating the toolbox
+
+<Tabs>
+<TabItem label="With SDK">
+```ts
+import { Chain, createUSwap } from "@tcswap/sdk";
+
+const uSwap = createUSwap();
+await uSwap.connectKeystore([Chain.Polkadot, Chain.Chainflip], "your mnemonic phrase");
+
+const dotWallet = uSwap.getWalletByChain(Chain.Polkadot);
+```
+</TabItem>
+<TabItem label="Standalone toolbox">
+```ts
+import { Chain } from "@tcswap/helpers";
+import { ChainflipToolbox, getSubstrateToolbox, PolkadotToolbox } from "@tcswap/toolboxes/substrate";
+
+const dot = await PolkadotToolbox({ phrase: "your mnemonic phrase" });
+const flip = await ChainflipToolbox({ phrase: "your mnemonic phrase" });
+
+// Same thing, chosen by chain
+const toolbox = await getSubstrateToolbox(Chain.Polkadot, { phrase: "your mnemonic phrase" });
+
+// With an injected extension signer (Polkadot.js, Talisman, ...)
+const injected = await PolkadotToolbox({ signer: extension.signer });
+```
+</TabItem>
+</Tabs>
+
+Toolbox params are `{ generic?: boolean } & ({ signer?: KeyringPair | Signer } | { phrase?: string; derivationPath?: DerivationPathArray; index?: number })`.
+
+- A phrase is loaded with `Keyring({ type: "sr25519" }).addFromUri(phrase)` using the chain's SS58 prefix. `derivationPath` and `index` are not applied; to derive a sub-account, put a Substrate derivation in the URI (for example `"phrase//0"`).
+- `generic: true` switches the toolbox's `network` (used by `validateAddress` and `createKeyring`) to the generic prefix `42`.
+- `getSubstrateToolbox` throws `toolbox_substrate_not_supported` for any other chain.
+
+Each toolbox connects to the chain's RPC over WebSocket (`WsProvider`) using `getRPCUrl(chain)`. Override the endpoints with `USwapConfig.setRpcUrl(Chain.Polkadot, ["wss://..."])` or the `rpcUrls` config option.
+
+The toolbox returns `api`, `network`, `gasAsset`, `getAddress`, `getBalance`, `validateAddress`, `transfer`, `createTransaction`, `estimateTransactionFee`, `sign`, `broadcast`, `signAndBroadcast`, `createKeyring`, `convertAddress`, `decodeAddress` and `encodeAddress`.
+
+## Common operations
+
+### Address and balance
+
+```ts
+const address = dot.getAddress(); // keyring address; undefined for an injected Signer
+
+const [balance] = await dot.getBalance(address!);
+```
+
+`getBalance(address)` returns the gas asset only. On Polkadot it reads the `free` balance from `system.account`. On Chainflip it reads the `flip.account` pallet. Errors are logged and give a zero balance.
+
+### Transfer
+
+```ts
+import { AssetValue, Chain } from "@tcswap/helpers";
+
+const txHash = await dot.transfer({
+  assetValue: AssetValue.from({ chain: Chain.Polkadot, value: "1.25" }),
+  recipient: "1...",
+});
+```
+
+`transfer` builds `balances.transferAllowDeath(recipient, amount)`, fetches the next nonce and calls `signAndSend`, then returns the hash string. With an injected `Signer` you must pass `sender`; otherwise it throws `core_transaction_invalid_sender_address`. `memo` is ignored.
+
+### Fee estimate
+
+```ts
+const fee = await dot.estimateTransactionFee({ assetValue, recipient: "1..." });
+```
+
+The estimate comes from `paymentInfo(...).partialFee` and is returned as a DOT (or FLIP) `AssetValue`. With an injected signer and no `sender`, it returns `undefined`.
+
+### Custom extrinsics
+
+```ts
+const tx = dot.api.tx.balances.transferKeepAlive(recipient, amount);
+
+// Keyring signer: pass a callback to follow the status
+await dot.signAndBroadcast({ tx, callback: (result) => console.log(result.status.toString()) });
+
+// Injected signer: the address is required
+await dot.signAndBroadcast({ tx, address });
+
+// Or sign first, then broadcast
+const signed = await dot.sign(tx); // keyring signer only
+const hash = await dot.broadcast(signed);
+```
+
+`sign(tx)` needs a keyring signer. `broadcast(tx)` returns the hash string; with a `callback` it subscribes to status updates instead. Prefer `broadcast` or a `callback` over the return value of `signAndBroadcast` when you need the hash.
+
+### Address validation and conversion
+
+```ts
+import { Chain } from "@tcswap/helpers";
+import { substrateValidateAddress } from "@tcswap/toolboxes/substrate";
+
+substrateValidateAddress({ address: "1...", chain: Chain.Polkadot });
+
+dot.validateAddress("1..."); // checks against the toolbox network prefix
+dot.convertAddress("1...", 2112); // re-encode for Chainflip
+```
+
+`substrateValidateAddress` accepts an address valid for the chain's prefix or for the generic prefix `42`. `decodeAddress` also accepts hex public keys, and `encodeAddress(bytes, "hex")` returns hex.
+
+## Swaps
+
+- There is no Substrate-specific swap plugin. Plugins that settle by paying a deposit address, such as Chainflip and [Houdini](/guides/plugins/houdini), call the wallet's `transfer` when the sell asset is on a Substrate chain. See the [plugins overview](/guides/plugins/overview).
+- `@tcswap/plugins/chainflip` also exports `ChainflipBroker`, which takes a `ChainflipToolbox` instance.

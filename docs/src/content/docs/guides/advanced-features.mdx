@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Advanced Features
 description: Advanced TCSwap features for building sophisticated DeFi applications including multi-chain operations, custom plugins, and performance optimization.
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 This guide covers advanced TCSwap features for building sophisticated DeFi applications.
 
@@ -85,9 +86,10 @@ const transactions = [
 ];
 
 const results = await Promise.allSettled(
-  transactions.map((tx) =>
+  transactions.map(({ assetValue, recipient }) =>
     uSwap.transfer({
-      ...tx,
+      assetValue,
+      recipient,
       feeOptionKey: FeeOption.Fast,
     })
   )
@@ -124,7 +126,7 @@ import { USwapApi } from "@tcswap/helpers/api";
 
 const mintQuote = await USwapApi.getSwapQuote({
   sellAsset: "BTC.BTC",
-  sellAmount: "10000000",
+  sellAmount: "0.1",
   buyAsset: "BTC/BTC",
   sourceAddress: uSwap.getAddress(Chain.Bitcoin),
   destinationAddress: uSwap.getAddress(Chain.THORChain),
@@ -145,7 +147,7 @@ Swap between synthetics instantly:
 
 const synthSwapQuote = await USwapApi.getSwapQuote({
   sellAsset: "BTC/BTC",
-  sellAmount: "10000000",
+  sellAmount: "0.1",
   buyAsset: "ETH/ETH",
   sourceAddress: uSwap.getAddress(Chain.THORChain),
   destinationAddress: uSwap.getAddress(Chain.THORChain),
@@ -166,7 +168,7 @@ Convert synthetics back to L1 assets:
 
 const redeemQuote = await USwapApi.getSwapQuote({
   sellAsset: "ETH/ETH",
-  sellAmount: "1000000000000000000",
+  sellAmount: "1",
   buyAsset: "ETH.ETH",
   sourceAddress: uSwap.getAddress(Chain.THORChain),
   destinationAddress: uSwap.getAddress(Chain.Ethereum),
@@ -187,7 +189,7 @@ THORChain and Maya use transaction memos for protocol instructions.
 ```typescript
 // @noErrorValidation
 
-const swapMemo = "SWAP:BTC.BTC:bc1q...";
+const swapMemo = "=:BTC.BTC:bc1q...";
 
 const addLiquidityMemo = "+:BTC.BTC:bc1q...";
 
@@ -200,7 +202,7 @@ const thornameeMemo = "~:name:chain:address";
 
 ```typescript
 // @noErrorValidation
-import { getMemoForDeposit, getMemoForWithdraw, MemoType } from "@tcswap/sdk";
+import { Chain, getMemoForDeposit, getMemoForWithdraw } from "@tcswap/sdk";
 
 const depositMemo = getMemoForDeposit({
   chain: Chain.Bitcoin,
@@ -226,21 +228,23 @@ Build custom swap routes for specific requirements:
 ```typescript
 // @noErrorValidation
 
+import { ProviderName } from "@tcswap/sdk";
+
 const { routes } = await USwapApi.getSwapQuote({
   sellAsset: "ETH.ETH",
-  sellAmount: "1000000000000000000",
+  sellAmount: "1",
   buyAsset: "BTC.BTC",
   sourceAddress: uSwap.getAddress(Chain.Ethereum),
   destinationAddress: uSwap.getAddress(Chain.Bitcoin),
   slippage: 3,
-  providers: ["thorchain", "chainflip", "1inch"],
+  providers: ["THORCHAIN", "CHAINFLIP", "ONEINCH"],
 });
 
 const customRoute = routes.find((route) => {
-  if (route.providers.includes("THORCHAIN")) return true;
+  if (route.providers.includes(ProviderName.THORCHAIN)) return true;
 
   if (
-    route.providers.includes("1INCH") &&
+    route.providers.includes(ProviderName.ONEINCH) &&
     route.sellAsset.split(".")[0] === route.buyAsset.split(".")[0]
   ) {
     return true;
@@ -249,10 +253,12 @@ const customRoute = routes.find((route) => {
   return false;
 });
 
+if (!customRoute) throw new Error("No matching route");
+
 const modifiedRoute = {
   ...customRoute,
-  memo: customRoute.memo + ":ss:50",
-  expiration: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  // expiration is a unix timestamp (seconds) encoded as a string
+  expiration: String(Math.floor((Date.now() + 10 * 60 * 1000) / 1000)),
 };
 
 await uSwap.swap({ route: modifiedRoute });
@@ -263,22 +269,15 @@ await uSwap.swap({ route: modifiedRoute });
 Optimize gas usage across different chains:
 
 ```typescript
-import { Chain, ChainId } from '@tcswap/sdk';
+// @noErrorValidation
+import { AssetValue, Chain, FeeOption, getChainConfig } from '@tcswap/sdk';
 import { USwapApi } from '@tcswap/helpers/api';
 
-const gasRatesArray = await USwapApi.getGasRate();
+const gasRates = await USwapApi.getGasRate();
 
-const gasRates = gasRatesArray.reduce((acc, rate) => {
-  acc[rate.chainId] = rate;
-  return acc;
-}, {} as Record<string, (typeof gasRatesArray)[0]>);
-
-async function getOptimalFeeOption(
-  chain: Chain,
-  urgency: "low" | "medium" | "high"
-) {
-  const chainId = ChainId[chain];
-  const gasRate = gasRates[chainId];
+function getFeeRate(chain: Chain, urgency: "low" | "medium" | "high") {
+  const { chainId } = getChainConfig(chain);
+  const gasRate = gasRates.find((rate) => rate.chainId === chainId);
 
   if (!gasRate) {
     throw new Error(`Gas rate not found for chain ${chain}`);
@@ -290,24 +289,21 @@ async function getOptimalFeeOption(
     high: 1.5,
   };
 
-  const baseRate = Number(gasRate.value);
-
-  return {
-    [Chain.Ethereum]: {
-      maxFeePerGas: Math.floor(baseRate * multipliers[urgency]),
-      maxPriorityFeePerGas: Math.floor(baseRate * 0.1 * multipliers[urgency]),
-    },
-    [Chain.Bitcoin]: {
-      feeRate: Math.floor(baseRate * multipliers[urgency]),
-    },
-  }[chain];
+  return Math.floor(Number(gasRate.value) * multipliers[urgency]);
 }
 
-const customFees = await getOptimalFeeOption(Chain.Ethereum, "low");
+// Pass an explicit fee rate (e.g. sat/vB for UTXO chains)...
 const tx = await uSwap.transfer({
-  assetValue,
-  recipient,
-  customTxFee: customFees,
+  assetValue: AssetValue.from({ asset: "BTC.BTC", value: 0.001 }),
+  recipient: "bc1q...",
+  feeRate: getFeeRate(Chain.Bitcoin, "low"),
+});
+
+// ...or let the toolbox estimate fees with a FeeOption multiplier
+const ethTx = await uSwap.transfer({
+  assetValue: AssetValue.from({ asset: "ETH.ETH", value: 0.1 }),
+  recipient: "0x...",
+  feeOptionKey: FeeOption.Average,
 });
 ```
 
@@ -317,7 +313,7 @@ Manage custom token lists and metadata:
 
 ```typescript
 // @noErrorValidation
-import { AssetValue, ProviderName } from '@tcswap/sdk';
+import { AssetValue, Chain, ProviderName } from '@tcswap/sdk';
 import { USwapApi } from '@tcswap/helpers/api';
 
 
@@ -363,11 +359,16 @@ class TokenRegistry {
     this.tokens.set(token.identifier, token);
 
 
-    AssetValue.setStaticAssets(new Map([[token.identifier, {
-      identifier: token.identifier,
-      chain: token.chain,
-      decimal: token.decimals
-    }]]));
+    // setStaticAssets replaces the whole static map, so merge with the existing entries
+    AssetValue.setStaticAssets(new Map([
+      ...AssetValue.staticAssets,
+      [token.identifier, {
+        identifier: token.identifier,
+        chain: token.chain as Chain,
+        decimal: token.decimals,
+        address: token.address,
+      }],
+    ]));
   }
 
   getToken(identifier: string) {
@@ -379,7 +380,7 @@ class TokenRegistry {
 const registry = new TokenRegistry();
 
 
-await registry.loadProviderTokens(ProviderName.UNISWAP);
+await registry.loadProviderTokens(ProviderName.UNISWAP_V3);
 
 
 registry.addCustomToken({
@@ -388,7 +389,7 @@ registry.addCustomToken({
   symbol: 'CUSTOM',
   decimals: 18,
   name: 'Custom Token',
-  logoURI: 'https:
+  logoURI: 'https://your-app.com/custom-token.png'
 });
 ```
 
@@ -397,7 +398,7 @@ registry.addCustomToken({
 Implement advanced transaction tracking:
 
 ```typescript
-import { ChainId } from '@tcswap/types';
+import { Chain, getChainConfig } from '@tcswap/sdk';
 import { USwapApi } from '@tcswap/helpers/api';
 
 class TransactionTracker {
@@ -408,7 +409,7 @@ class TransactionTracker {
 
     const interval = setInterval(async () => {
       try {
-        const status = await USwapApi.getTrackerDetails({ hash: txHash, chainId: ChainId[chain] });
+        const status = await USwapApi.getTrackerDetails({ hash: txHash, chainId: getChainConfig(chain).chainId });
 
         if (status.status === "completed") {
           this.pendingTxs.set(txHash, { ...status, chain });
@@ -462,7 +463,8 @@ class USwapRetry {
 
         if (
           error instanceof USwapError &&
-          error.message === "wallet_connection_rejected_by_user"
+          (error.message.startsWith("wallet_connection_rejected_by_user") ||
+            error.message.startsWith("core_transaction_user_rejected"))
         ) {
           throw error;
         }
@@ -530,4 +532,4 @@ async function getCachedQuote(params: any) {
 
 - Explore [THORChain Features](/guides/thorchain-features) for protocol-specific operations
 - Review [API Reference](/guides/api-reference) for all available methods
-- Check [Playgrounds](https:
+- Check [Playgrounds](https://github.com/thorchain/TCSwap/tree/main/playgrounds) for complete examples

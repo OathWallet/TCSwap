@@ -1,18 +1,21 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Phantom Browser Extension Integration
 description: Complete guide to integrating Phantom wallet with TCSwap SDK v4 for multi-chain support
 ---
 
-Phantom is a popular multi-chain browser extension wallet that originally focused on Solana but now supports Ethereum and Bitcoin as well. TCSwap SDK v4 provides comprehensive support for Phantom across all its supported chains.
+{/* Modifications © 2025 Horizontal Systems. */}
+
+Phantom is a popular multi-chain browser extension wallet that originally focused on Solana but now supports Ethereum and Bitcoin as well. TCSwap supports Phantom through `phantomWallet`, which exposes the `connectPhantom` method.
 
 ## Supported Chains
 
-TCSwap supports Phantom wallet for:
+`connectPhantom` accepts the following chains (`PHANTOM_SUPPORTED_CHAINS`):
 
-- **Solana**: Native Solana support with SPL tokens
-- **Ethereum**: EVM functionality with ERC-20 tokens
-- **Bitcoin**: Bitcoin transactions and UTXO management
+- **Solana** (`Chain.Solana`, via `window.phantom.solana`): SOL and SPL token transfers
+- **Ethereum** (`Chain.Ethereum`) and **Monad** (`Chain.Monad`), via `window.phantom.ethereum`. Connecting Monad asks Phantom to switch to (or add) the Monad network.
+- **Bitcoin** (`Chain.Bitcoin`, via `window.phantom.bitcoin`): address and balance only. The Bitcoin connection does not attach a signer, so `transfer` on Bitcoin throws `toolbox_utxo_no_signer`.
+
+If Phantom's Solana or Bitcoin provider is missing, connecting throws `wallet_phantom_not_found`. Other connection errors are re-thrown as `wallet_connection_rejected_by_user`.
 
 ## Installation and Setup
 
@@ -20,8 +23,8 @@ TCSwap supports Phantom wallet for:
 
 Install Phantom from official sources:
 
-- **Chrome/Chromium**: [Chrome Web Store](https:
-- **Firefox**: [Firefox Add-ons](https:
+- **Chrome/Chromium**: [Download](https://phantom.com/download)
+- **Firefox**: [Download](https://phantom.com/download)
 - **Brave**: Available through Chrome Web Store
 - **Edge**: Available through Chrome Web Store
 
@@ -42,7 +45,7 @@ Phantom works in:
 - **Brave**: Full support
 - **Edge**: Full support
 
-## USwap Integration
+## TCSwap Integration
 
 ### Basic Setup
 
@@ -197,7 +200,7 @@ await uSwap.connectPhantom([Chain.Solana]);
 
 async function sendSol() {
   const recipient = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
-  const amount = AssetValue.fromChainOrSignature("SOL.SOL", 0.1);
+  const amount = AssetValue.from({ asset: "SOL.SOL", value: 0.1 });
 
   try {
     console.log("Sending SOL transaction...");
@@ -210,7 +213,7 @@ async function sendSol() {
     });
 
     console.log("✅ SOL transfer sent:", txHash);
-    console.log("🔍 View on Solscan:", `https:
+    console.log("🔍 View on Solscan:", `https://solscan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -234,10 +237,10 @@ await uSwap.connectPhantom([Chain.Solana]);
 async function sendSPLToken() {
   const recipient = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
 
-  const amount = AssetValue.fromChainOrSignature(
-    "SOL.USDC-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-    100
-  );
+  const amount = AssetValue.from({
+    asset: "SOL.USDC-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    value: 100,
+  });
 
   try {
     const txHash = await uSwap.transfer({
@@ -255,7 +258,7 @@ async function sendSPLToken() {
 
 async function sendToPDA() {
   const recipient = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
-  const amount = AssetValue.fromChainOrSignature("SOL.SOL", 0.1);
+  const amount = AssetValue.from({ asset: "SOL.SOL", value: 0.1 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -288,7 +291,7 @@ await uSwap.connectPhantom([Chain.Ethereum]);
 
 async function sendEthereumFromPhantom() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+  const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -297,7 +300,7 @@ async function sendEthereumFromPhantom() {
     });
 
     console.log("✅ ETH transfer sent via Phantom:", txHash);
-    console.log("🔍 View on Etherscan:", `https:
+    console.log("🔍 View on Etherscan:", `https://etherscan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -309,7 +312,7 @@ async function sendEthereumFromPhantom() {
 
 async function sendERC20FromPhantom() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ETH.USDC-0xA0B86A33E6441E89D5E4C4EDF4C8DF4C0E6C62F6", 100);
+  const amount = AssetValue.from({ asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", value: 100 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -326,42 +329,21 @@ async function sendERC20FromPhantom() {
 }
 ```
 
-### Bitcoin Transactions
+### Bitcoin
+
+Phantom's Bitcoin connection is read-only in TCSwap: you can read the address and balance, but `uSwap.transfer` on `Chain.Bitcoin` throws `toolbox_utxo_no_signer`.
 
 ```ts twoslash
-
-import { USwap, phantomWallet, Chain, AssetValue } from "@tcswap/sdk";
+import { USwap, phantomWallet, Chain } from "@tcswap/sdk";
 
 const uSwap = USwap({
   wallets: { ...phantomWallet },
 });
 
-
 await uSwap.connectPhantom([Chain.Bitcoin]);
 
-async function sendBitcoinFromPhantom() {
-  const recipient = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("BTC.BTC", 0.001);
-
-  try {
-    console.log("Sending Bitcoin via Phantom...");
-    console.log("Amount:", amount.toSignificant(8), "BTC");
-    console.log("To:", recipient);
-
-    const txHash = await uSwap.transfer({
-      assetValue: amount,
-      recipient,
-    });
-
-    console.log("✅ Bitcoin transfer sent:", txHash);
-    console.log("🔍 View on Blockstream:", `https:
-
-    return txHash;
-  } catch (error) {
-    console.error("❌ Bitcoin transfer failed:", error);
-    throw error;
-  }
-}
+const address = uSwap.getAddress(Chain.Bitcoin);
+const balance = await uSwap.getBalance(Chain.Bitcoin, true);
 ```
 
 ## Chain-Specific Features
@@ -378,16 +360,12 @@ const uSwap = USwap({
 await uSwap.connectPhantom([Chain.Solana]);
 
 async function advancedSolanaOperations() {
-  const wallet = await uSwap.getWalletWithBalance(Chain.Solana);
-
-  function isPDA(address: string): boolean {
-    return address.length === 44 && !address.includes("1" || "2" || "3" || "4");
-  }
-
   const recipient = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
-  const amount = AssetValue.fromChainOrSignature("SOL.SOL", 0.1);
+  const amount = AssetValue.from({ asset: "SOL.SOL", value: 0.1 });
 
-  const isProgramDerivedAddress = isPDA(recipient);
+  // Set to true when the recipient is a program derived address (PDA);
+  // this skips the on-curve recipient address validation
+  const isProgramDerivedAddress = false;
 
   try {
     const txHash = await uSwap.transfer({
@@ -406,10 +384,10 @@ async function advancedSolanaOperations() {
 async function handleSPLTokenAccount() {
   const tokenMintAddress = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
   const recipient = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
-  const amount = AssetValue.fromChainOrSignature(
-    `SOL.USDC-${tokenMintAddress}`,
-    100
-  );
+  const amount = AssetValue.from({
+    asset: `SOL.USDC-${tokenMintAddress}`,
+    value: 100,
+  });
 
   try {
     const txHash = await uSwap.transfer({
@@ -479,7 +457,7 @@ async function diagnosticConnection() {
 
     if (typeof window.phantom === 'undefined') {
       console.error("❌ Phantom wallet not found");
-      console.log("🔧 Install Phantom from https:
+      console.log("🔧 Install Phantom from https://phantom.com/download");
       return { success: false, error: "Phantom not installed" };
     }
 
@@ -533,7 +511,7 @@ async function checkPhantomChainSupport() {
 ```ts twoslash
 async function handleTransactionErrors() {
   try {
-    const amount = AssetValue.fromChainOrSignature("SOL.SOL", 0.1);
+    const amount = AssetValue.from({ asset: "SOL.SOL", value: 0.1 });
     const txHash = await uSwap.transfer({
       assetValue: amount,
       recipient: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
@@ -582,16 +560,16 @@ async function handleNetworkSpecificIssues() {
   try {
     await uSwap.connectPhantom([Chain.Ethereum]);
   } catch (error) {
-    if (error.message.includes("Ethereum")) {
-      console.error("❌ Phantom Ethereum connection failed");
+    if (error.message.includes("wallet_connection_rejected_by_user")) {
+      console.error("❌ Phantom Ethereum connection failed or was rejected");
       console.log("🔧 Troubleshooting steps:");
       console.log("1. Ensure Phantom supports Ethereum (newer versions)");
       console.log("2. Switch to Ethereum network in Phantom");
       console.log("3. Check if Ethereum provider is enabled");
     }
 
-    if (error.message.includes("Bitcoin")) {
-      console.error("❌ Phantom Bitcoin connection failed");
+    if (error.message.includes("wallet_phantom_not_found")) {
+      console.error("❌ Phantom Solana or Bitcoin provider not found");
       console.log("🔧 Troubleshooting steps:");
       console.log("1. Ensure Phantom supports Bitcoin (latest versions)");
       console.log("2. Switch to Bitcoin network in Phantom");
@@ -642,14 +620,12 @@ async function secureTransaction(
   let assetValue: AssetValue;
   switch (chain) {
     case Chain.Solana:
-      assetValue = AssetValue.fromChainOrSignature("SOL.SOL", amount);
+      assetValue = AssetValue.from({ asset: "SOL.SOL", value: amount });
       break;
     case Chain.Ethereum:
-      assetValue = AssetValue.fromChainOrSignature("ETH.ETH", amount);
+      assetValue = AssetValue.from({ asset: "ETH.ETH", value: amount });
       break;
-    case Chain.Bitcoin:
-      assetValue = AssetValue.fromChainOrSignature("BTC.BTC", amount);
-      break;
+    // Bitcoin is not included: Phantom's Bitcoin connection has no signer
     default:
       throw new Error("Unsupported chain");
   }
@@ -699,9 +675,9 @@ const secureUSwap = USwap({
   config: {
 
     rpcUrls: {
-      [Chain.Solana]: "https:
-      [Chain.Ethereum]: "https:
-      [Chain.Bitcoin]: "https:
+      [Chain.Solana]: ["https://api.mainnet-beta.solana.com"],
+      [Chain.Ethereum]: ["https://ethereum-rpc.publicnode.com"],
+      [Chain.Bitcoin]: ["https://bitcoin-rpc.publicnode.com"],
     },
     apiKeys: {
       uSwap: process.env.USWAP_API_KEY,
@@ -815,7 +791,7 @@ export function PhantomWallet({ onConnect, onError }: PhantomWalletProps) {
         <h3>Phantom Wallet</h3>
         <p>Phantom wallet not detected</p>
         <a
-          href="https:
+          href="https://phantom.com/download"
           target="_blank"
           rel="noopener noreferrer"
         >

@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Avalanche Integration
 description: Complete guide to integrating Avalanche C-Chain with TCSwap SDK for fast DeFi operations and cross-chain swaps
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem, Code } from "@astrojs/starlight/components";
 
@@ -40,28 +41,26 @@ import { createUSwap, Chain } from '@tcswap/sdk';
 
 const uSwap = createUSwap();
 
-const avaxWallet = await uSwap.getWallet(Chain.Avalanche);
+await uSwap.connectKeystore([Chain.Avalanche], "your twelve word mnemonic phrase here");
 
-````
+const avaxWallet = uSwap.getWalletByChain(Chain.Avalanche);
+```
 </TabItem>
 <TabItem label="Standalone Toolbox">
 ```typescript
 // @noErrorValidation
-import { getAvalancheToolbox } from '@tcswap/toolboxes/evm';
+import { AVAXToolbox } from '@tcswap/toolboxes/evm';
 
-
-const avaxToolbox = await getAvalancheToolbox({
+const avaxToolbox = await AVAXToolbox({
   phrase: "your twelve word mnemonic phrase here",
-
-  derivationPath: [44, 60, 0, 0, 0]
 });
 
-
-const avaxToolbox = await getAvalancheToolbox({
+// or bring your own ethers signer and provider
+const customAvaxToolbox = await AVAXToolbox({
   signer: customAvalancheSigner,
   provider: customAvalancheProvider
 });
-````
+```
 
 </TabItem>
 </Tabs>
@@ -78,9 +77,9 @@ import { Chain, FeeOption } from "@tcswap/sdk";
 
 await uSwap.connectKeystore([Chain.Avalanche], "your mnemonic phrase");
 
-await uSwap.connectBrowserWallet(Chain.Avalanche);
+await uSwap.connectEVMWallet([Chain.Avalanche]);
 
-await uSwap.connectWalletConnect([Chain.Avalanche]);
+await uSwap.connectWalletconnect([Chain.Avalanche]);
 
 await uSwap.connectLedger([Chain.Avalanche]);
 ```
@@ -115,9 +114,7 @@ Avalanche supports ERC-20 tokens with fast finality:
 const usdcTransfer = await uSwap.transfer({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
   assetValue: AssetValue.from({
-    chain: Chain.Avalanche,
-    symbol: "USDC",
-    address: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    asset: "AVAX.USDC-0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
     value: "100",
   }),
   feeOptionKey: FeeOption.Average,
@@ -126,14 +123,12 @@ const usdcTransfer = await uSwap.transfer({
 const wAvaxTransfer = await uSwap.transfer({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
   assetValue: AssetValue.from({
-    chain: Chain.Avalanche,
-    symbol: "WAVAX",
-    address: "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+    asset: "AVAX.WAVAX-0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
     value: "5",
   }),
 });
 
-const toolbox = await getAvalancheToolbox({ phrase: "..." });
+const toolbox = await AVAXToolbox({ phrase: "..." });
 
 const batchTransfers = async () => {
   const transfers = [
@@ -175,7 +170,9 @@ Avalanche contracts execute with sub-second finality:
 ```typescript
 // @noErrorValidation
 
-const result = await toolbox.call({
+import { erc20ABI } from "@tcswap/helpers/contracts";
+
+const result = await toolbox.call<bigint>({
   contractAddress: "0x60781C2586D68229fde47564546784ab3fACA982",
   abi: erc20ABI,
   funcName: "balanceOf",
@@ -188,11 +185,11 @@ const txHash = await toolbox.call({
   funcName: "transfer",
   funcParams: [
     "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-    "1000000000000000000",
+    1000000000000000000n,
   ],
   txOverrides: {
-    gasLimit: "65000",
-    gasPrice: "25000000000",
+    gasLimit: 65000n,
+    gasPrice: 25000000000n,
   },
 });
 
@@ -204,7 +201,7 @@ const deFiInteraction = await toolbox.call({
     /* farming parameters */
   ],
   txOverrides: {
-    gasLimit: "300000",
+    gasLimit: 300000n,
   },
 });
 ```
@@ -216,24 +213,26 @@ Avalanche uses AVAX for gas with predictable pricing:
 ```typescript
 // @noErrorValidation
 
-const gasInfo = await toolbox.getGasPrices();
+const gasInfo = await toolbox.estimateGasPrices();
 console.log({
-  slow: gasInfo.average,
-  standard: gasInfo.fast,
-  fast: gasInfo.fastest,
+  average: gasInfo.average,
+  fast: gasInfo.fast,
+  fastest: gasInfo.fastest,
 });
 
-const txParams = await toolbox.buildTransaction({
+const txParams = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.Avalanche, value: "1" }),
-  gasLimit: "21000",
-  gasPrice: "25000000000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.Avalanche, value: "1" }),
+  gasLimit: 21000n,
+  gasPrice: 25000000000n,
 });
 
-const legacyTx = await toolbox.buildTransaction({
+const legacyTx = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.Avalanche, value: "1" }),
-  gasPrice: "30000000000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.Avalanche, value: "1" }),
+  gasPrice: 30000000000n,
 });
 ```
 
@@ -243,13 +242,14 @@ const legacyTx = await toolbox.buildTransaction({
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const bridgeQuote = await uSwap.getQuote({
+const bridgeQuote = await USwapApi.getSwapQuote({
   sellAsset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   sellAmount: "1000",
   buyAsset: "AVAX.USDC-0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-  senderAddress: uSwap.getAddress(Chain.Ethereum),
-  recipientAddress: uSwap.getAddress(Chain.Avalanche),
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+  destinationAddress: uSwap.getAddress(Chain.Avalanche),
 });
 
 const bridgeTx = await uSwap.swap({
@@ -257,12 +257,12 @@ const bridgeTx = await uSwap.swap({
   feeOptionKey: FeeOption.Fast,
 });
 
-const ethToAvaxBridge = await uSwap.getQuote({
+const ethToAvaxBridge = await USwapApi.getSwapQuote({
   sellAsset: "ETH.ETH",
   sellAmount: "0.5",
   buyAsset: "AVAX.AVAX",
-  senderAddress: uSwap.getAddress(Chain.Ethereum),
-  recipientAddress: uSwap.getAddress(Chain.Avalanche),
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+  destinationAddress: uSwap.getAddress(Chain.Avalanche),
 });
 ```
 
@@ -270,13 +270,14 @@ const ethToAvaxBridge = await uSwap.getQuote({
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const avaxToBtcQuote = await uSwap.getQuote({
+const avaxToBtcQuote = await USwapApi.getSwapQuote({
   sellAsset: "AVAX.AVAX",
   sellAmount: "10",
   buyAsset: "BTC.BTC",
-  senderAddress: uSwap.getAddress(Chain.Avalanche),
-  recipientAddress: uSwap.getAddress(Chain.Bitcoin),
+  sourceAddress: uSwap.getAddress(Chain.Avalanche),
+  destinationAddress: uSwap.getAddress(Chain.Bitcoin),
 });
 
 const crossChainSwap = await uSwap.swap({
@@ -284,12 +285,12 @@ const crossChainSwap = await uSwap.swap({
   feeOptionKey: FeeOption.Fast,
 });
 
-const pngToRuneQuote = await uSwap.getQuote({
+const pngToRuneQuote = await USwapApi.getSwapQuote({
   sellAsset: "AVAX.PNG-0x60781C2586D68229fde47564546784ab3fACA982",
   sellAmount: "1000",
   buyAsset: "THOR.RUNE",
-  senderAddress: uSwap.getAddress(Chain.Avalanche),
-  recipientAddress: uSwap.getAddress(Chain.THORChain),
+  sourceAddress: uSwap.getAddress(Chain.Avalanche),
+  destinationAddress: uSwap.getAddress(Chain.THORChain),
 });
 ```
 
@@ -299,32 +300,33 @@ Access native Avalanche DEXs for optimal liquidity:
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const traderjoeQuote = await uSwap.getQuote({
+const traderjoeQuote = await USwapApi.getSwapQuote({
   sellAsset: "AVAX.AVAX",
   sellAmount: "10",
   buyAsset: "AVAX.USDC-0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-  senderAddress: uSwap.getAddress(Chain.Avalanche),
-  recipientAddress: uSwap.getAddress(Chain.Avalanche),
+  sourceAddress: uSwap.getAddress(Chain.Avalanche),
+  destinationAddress: uSwap.getAddress(Chain.Avalanche),
   providers: ["TRADERJOE_V2"],
 });
 
-const pangolinQuote = await uSwap.getQuote({
+const pangolinQuote = await USwapApi.getSwapQuote({
   sellAsset: "AVAX.USDC-0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
   sellAmount: "500",
   buyAsset: "AVAX.PNG-0x60781C2586D68229fde47564546784ab3fACA982",
-  senderAddress: uSwap.getAddress(Chain.Avalanche),
-  recipientAddress: uSwap.getAddress(Chain.Avalanche),
-  providers: ["PANGOLIN"],
+  sourceAddress: uSwap.getAddress(Chain.Avalanche),
+  destinationAddress: uSwap.getAddress(Chain.Avalanche),
+  providers: ["PANGOLIN_V1"],
 });
 
-const bestRateQuote = await uSwap.getQuote({
+const bestRateQuote = await USwapApi.getSwapQuote({
   sellAsset: "AVAX.WAVAX-0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
   sellAmount: "5",
   buyAsset: "AVAX.JOE-0x6e84a6216eA6dACC71eE8E6b0a5B7322EEbC0fDd",
-  senderAddress: uSwap.getAddress(Chain.Avalanche),
-  recipientAddress: uSwap.getAddress(Chain.Avalanche),
-  providers: ["TRADERJOE_V2", "PANGOLIN"],
+  sourceAddress: uSwap.getAddress(Chain.Avalanche),
+  destinationAddress: uSwap.getAddress(Chain.Avalanche),
+  providers: ["TRADERJOE_V2", "PANGOLIN_V1"],
 });
 
 const dexSwap = await uSwap.swap({
@@ -353,9 +355,14 @@ const getPortfolioBalances = async () => {
   const balances = {};
   const address = uSwap.getAddress(Chain.Avalanche);
 
+  // Returns AVAX plus every token the address holds as AssetValue[]
+  const assetValues = await toolbox.getBalance(address);
+
   for (const [symbol, tokenAddress] of Object.entries(avalancheTokens)) {
-    const balance = await toolbox.getBalance(address, tokenAddress);
-    balances[symbol] = balance.toString();
+    const balance = assetValues.find(
+      (asset) => asset.address?.toLowerCase() === tokenAddress.toLowerCase()
+    );
+    balances[symbol] = balance?.toSignificant(6) ?? "0";
   }
 
   return balances;
@@ -373,8 +380,8 @@ const benqiSupply = await toolbox.call({
   funcName: "mint",
   funcParams: [],
   txOverrides: {
-    value: "10000000000000000000",
-    gasLimit: "150000",
+    value: 10000000000000000000n,
+    gasLimit: 150000n,
   },
 });
 
@@ -398,11 +405,13 @@ const pangolinStaking = await toolbox.call({
 ```typescript
 // @noErrorValidation
 
+import { JsonRpcProvider } from "ethers";
+
 const subnetInteraction = async () => {
 
-  const subnetProvider = new JsonRpcProvider("https:
+  const subnetProvider = new JsonRpcProvider("https://api.avax.network/ext/bc/C/rpc");
 
-  const subnetToolbox = await getAvalancheToolbox({
+  const subnetToolbox = await AVAXToolbox({
     phrase: "your mnemonic",
     provider: subnetProvider
   });
@@ -429,16 +438,16 @@ import { USwapConfig } from '@tcswap/sdk';
 
 
 USwapConfig.setRpcUrl(Chain.Avalanche, [
-  "https:
-  "https:
-  "https:
+  "https://api.avax.network/ext/bc/C/rpc",
+  "https://avalanche-c-chain-rpc.publicnode.com",
+  "https://1rpc.io/avax/c",
 ]);
 
 
 import { JsonRpcProvider } from 'ethers';
 
-const avalancheProvider = new JsonRpcProvider("https:
-const toolbox = await getAvalancheToolbox({
+const avalancheProvider = new JsonRpcProvider("https://api.avax.network/ext/bc/C/rpc");
+const toolbox = await AVAXToolbox({
   phrase: "your mnemonic",
   provider: avalancheProvider
 });
@@ -449,8 +458,7 @@ const toolbox = await getAvalancheToolbox({
 ```typescript
 // @noErrorValidation
 
-USwapConfig.setRpcUrl(Chain.Avalanche, "https:
-USwapConfig.setEnv('isMainnet', false);
+USwapConfig.setRpcUrl(Chain.Avalanche, ["https://api.avax.network/ext/bc/C/rpc"]);
 
 
 const testnetTokens = {
@@ -473,18 +481,18 @@ try {
   });
 } catch (error) {
   if (error instanceof USwapError) {
-    switch (error.code) {
-      case "toolbox_evm_insufficient_funds":
-        console.error("Insufficient AVAX for gas");
+    switch (error.message.split(":")[0]) {
+      case "toolbox_evm_error_estimating_gas_limit":
+        console.error("Gas estimation failed - check AVAX balance for gas");
         break;
-      case "network_avalanche_congestion":
-        console.error("Network congestion, try increasing gas price");
+      case "toolbox_evm_gas_estimation_error":
+        console.error("Could not fetch gas prices, try again");
         break;
-      case "toolbox_evm_transaction_failed":
+      case "toolbox_evm_error_sending_transaction":
         console.error("Transaction failed:", error.cause);
         break;
-      case "bridge_avalanche_timeout":
-        console.error("Bridge operation timed out");
+      case "core_wallet_connection_not_found":
+        console.error("Avalanche wallet is not connected");
         break;
       default:
         console.error("Unknown error:", error);
@@ -521,29 +529,19 @@ const batchOperations = async () => {
 ```typescript
 // @noErrorValidation
 
-const optimizedTx = await toolbox.buildTransaction({
+const optimizedTx = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.Avalanche, value: "1" }),
-  gasLimit: "21000",
-  gasPrice: "25000000000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.Avalanche, value: "1" }),
+  gasLimit: 21000n,
+  gasPrice: 25000000000n,
 });
 
-const multicallData = [
-  {
-    target: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-    callData: "0x70a08231...",
-  },
-  {
-    target: "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
-    callData: "0x70a08231...",
-  },
-  {
-    target: "0x60781C2586D68229fde47564546784ab3fACA982",
-    callData: "0x70a08231...",
-  },
-];
-
-const balances = await toolbox.multicall(multicallData);
+const fee = await toolbox.estimateTransactionFee({
+  ...optimizedTx,
+  chain: Chain.Avalanche,
+  feeOption: FeeOption.Average,
+});
 ```
 
 ## Best Practices
@@ -557,8 +555,11 @@ const balances = await toolbox.multicall(multicallData);
      feeOptionKey: FeeOption.Fast,
    });
 
-   const receipt = await toolbox.waitForTransaction(fastTx);
-   console.log("Confirmed almost instantly:", receipt.blockNumber);
+   import { getProvider } from "@tcswap/toolboxes/evm";
+
+   const provider = await getProvider(Chain.Avalanche);
+   const receipt = await provider.waitForTransaction(fastTx);
+   console.log("Confirmed almost instantly:", receipt?.blockNumber);
    ```
 
 2. **Use Native Avalanche Tokens**:
@@ -581,18 +582,20 @@ const balances = await toolbox.multicall(multicallData);
      funcParams: [
        /* many parameters */
      ],
-     gasLimit: "500000",
+     txOverrides: { gasLimit: 500000n },
    });
    ```
 
 4. **Monitor Network Health**:
 
    ```typescript
-   const networkHealth = await toolbox.getBlockNumber();
-   const latestBlock = await toolbox.getBlock(networkHealth);
+   import { getProvider } from "@tcswap/toolboxes/evm";
 
-   console.log("Block time:", latestBlock.timestamp);
-   console.log("Gas used:", latestBlock.gasUsed.toString());
+   const provider = await getProvider(Chain.Avalanche);
+   const latestBlock = await provider.getBlock("latest");
+
+   console.log("Block time:", latestBlock?.timestamp);
+   console.log("Gas used:", latestBlock?.gasUsed.toString());
    ```
 
 ## Popular Avalanche Protocols
@@ -616,7 +619,7 @@ const joeV2Trade = await toolbox.call({
     Date.now() + 600000,
   ],
   txOverrides: {
-    value: "1000000000000000000",
+    value: 1000000000000000000n,
   },
 });
 ```
@@ -632,8 +635,8 @@ const benqiSupply = await toolbox.call({
   funcName: "mint",
   funcParams: [],
   txOverrides: {
-    value: "5000000000000000000",
-    gasLimit: "200000",
+    value: 5000000000000000000n,
+    gasLimit: 200000n,
   },
 });
 
@@ -652,10 +655,11 @@ const benqiBorrow = await toolbox.call({
 1. **Gas price too low**:
 
    ```typescript
-   const fasterTx = await toolbox.buildTransaction({
+   const fasterTx = await toolbox.createTransaction({
      recipient: "0x...",
-     amount: AssetValue.from({ chain: Chain.Avalanche, value: "1" }),
-     gasPrice: "35000000000",
+     sender: "0xYourAddress",
+     assetValue: AssetValue.from({ chain: Chain.Avalanche, value: "1" }),
+     gasPrice: 35000000000n,
    });
    ```
 
@@ -664,9 +668,9 @@ const benqiBorrow = await toolbox.call({
    ```typescript
 
    const providers = [
-     "https:
-     "https:
-     "https:
+     "https://api.avax.network/ext/bc/C/rpc",
+     "https://avalanche-c-chain-rpc.publicnode.com",
+     "https://1rpc.io/avax/c",
    ];
 
    USwapConfig.setRpcUrl(Chain.Avalanche, providers);
@@ -687,22 +691,18 @@ const benqiBorrow = await toolbox.call({
 
 ### Core Methods (Same as Ethereum)
 
-- `getBalance()` - Get AVAX or token balance
+- `getBalance()` - Get AVAX and token balances (`AssetValue[]`)
 - `transfer()` - Send AVAX or tokens
-- `buildTransaction()` - Construct transaction parameters
+- `createTransaction()` - Construct transaction parameters
+- `sendTransaction()` - Sign and broadcast a transaction object
 - `call()` - Execute smart contract functions
 - `estimateCall()` - Estimate gas for contract calls
 
 ### Gas Management
 
-- `getGasPrices()` - Get current gas prices in nAVAX
-- `estimateGas()` - Estimate gas usage
-- `waitForTransaction()` - Wait for fast confirmation
-
-### Avalanche Specific
-
-- `getBlockNumber()` - Get latest block (updates every ~2 seconds)
-- `getBlock()` - Get block details with fast finality
+- `estimateGasPrices()` - Get current gas prices per fee option
+- `estimateGasLimit()` - Estimate gas limit for a transfer
+- `estimateTransactionFee()` - Estimate the total fee for a transaction
 
 ## Next Steps
 

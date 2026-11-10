@@ -1,0 +1,58 @@
+---
+title: Xaman Wallet Integration
+description: Connect the Xaman (formerly Xumm) wallet to TCSwap for the XRP Ledger
+---
+
+Xaman (formerly Xumm) is supported through `xamanWallet`, which adds the `connectXaman` method to your TCSwap client (`WalletOption.XAMAN`). It uses the `xumm` SDK: the user signs in with the Xaman app, and transactions are sent to the app as sign requests.
+
+## Supported Chains
+
+- **Ripple (XRP Ledger)** only (`XAMAN_SUPPORTED_CHAINS`).
+
+## Installation and Import
+
+```bash
+bun add @tcswap/sdk
+```
+
+```ts twoslash
+import { Chain, USwap, xamanWallet } from "@tcswap/sdk";
+```
+
+## Connecting
+
+Xaman needs an API key from the Xaman developer console. Set it as `apiKeys.xaman`, or pass `{ apiKey }` as the second argument of `connectXaman`.
+
+```ts twoslash
+import { AssetValue, Chain, USwap, xamanWallet } from "@tcswap/sdk";
+
+const uSwap = USwap({
+  config: {
+    apiKeys: {
+      uSwap: "your-api-key",
+      xaman: "your-xaman-api-key",
+    },
+  },
+  wallets: { ...xamanWallet },
+});
+
+await uSwap.connectXaman([Chain.Ripple]);
+// or: await uSwap.connectXaman([Chain.Ripple], { apiKey: "your-xaman-api-key" });
+
+const address = uSwap.getAddress(Chain.Ripple);
+const balance = await uSwap.getBalance(Chain.Ripple, true);
+
+const txHash = await uSwap.transfer({
+  assetValue: AssetValue.from({ chain: Chain.Ripple, value: 10 }),
+  recipient: "RECIPIENT_XRP_ADDRESS",
+});
+```
+
+## Notes
+
+- The method is registered as `connectXaman` (the underlying function is named `connectXamanWallet`).
+- Without an API key, connecting throws `wallet_missing_api_key`.
+- `connectXaman` calls `xumm.authorize()` and resolves once Xaman reports a successful sign-in; an authorization error rejects the promise.
+- The connected chain starts with an empty cached balance; use `getBalance(Chain.Ripple, true)` to fetch it.
+- `transfer` creates a payment request in Xaman and resolves with the transaction ID once the user signs it; a rejected or failed payment throws `wallet_xaman_transaction_failed`.
+- `disconnect` calls `xumm.logout`.

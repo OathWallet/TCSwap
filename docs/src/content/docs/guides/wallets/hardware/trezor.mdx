@@ -1,17 +1,22 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Trezor Hardware Wallet Integration
 description: Complete guide to integrating Trezor hardware wallets with TCSwap SDK v4
 ---
 
-Trezor hardware wallets provide secure cryptocurrency storage by keeping private keys offline on a dedicated device. TCSwap SDK v4 supports both Trezor Model One and Model T devices across multiple blockchain networks.
+{/* Modifications © 2025 Horizontal Systems. */}
+
+Trezor hardware wallets provide secure cryptocurrency storage by keeping private keys offline on a dedicated device. TCSwap supports Trezor devices through `trezorWallet`, which exposes the `connectTrezor` method and uses Trezor Connect (`@trezor/connect-web`).
 
 ## Supported Chains
 
-TCSwap supports Trezor devices on these chains:
+`connectTrezor` accepts the following chains (`TREZOR_SUPPORTED_CHAINS`):
 
-- **EVM Compatible**: Ethereum, Arbitrum, Aurora, Avalanche, Base, BinanceSmartChain, Gnosis, Optimism, Polygon
-- **UTXO Chains**: Bitcoin, Bitcoin Cash, Dash, Dogecoin, Litecoin
+- **EVM**: Arbitrum, Aurora, Avalanche, Base, BNB Smart Chain, Ethereum, Gnosis, Monad, Optimism, Polygon, X Layer
+- **UTXO**: Bitcoin, Bitcoin Cash, Dash, Dogecoin, Litecoin, Zcash
+
+**Signature:** `connectTrezor(chains: Chain[], derivationPath: DerivationPathArray)`. The derivation path is required, and only the first supported chain in `chains` is connected, so call it once per chain (for example with `NetworkDerivationPath[chain]`). If none of the chains is supported, it throws `wallet_chain_not_supported`.
+
+For Bitcoin-like chains the script type is derived from the path's purpose (44 = legacy, 49 = P2SH-SegWit, 84 = native SegWit); other purposes throw `wallet_trezor_derivation_path_not_supported`.
 
 ## Installation and Setup
 
@@ -23,7 +28,7 @@ TCSwap supports Trezor devices on these chains:
 
 ### 2. Install Trezor Suite
 
-Download and install [Trezor Suite](https:
+Download and install [Trezor Suite](https://trezor.io/trezor-suite)
 
 - Update firmware
 - Install coin support
@@ -54,6 +59,8 @@ Trezor Connect works in modern browsers:
 
 ### Basic Setup
 
+If Trezor Connect has no device state yet, `connectTrezor` initializes it (`lazyLoad: true`) with a manifest built from `config.integrations.trezor` (`{ email, appUrl }`). The manifest's `appName` defaults to `"TCSwap"`.
+
 #### Granular Approach (Recommended for Frontend)
 
 ```ts twoslash
@@ -69,8 +76,7 @@ const uSwap = USwap({
 
     integrations: {
       trezor: {
-        appName: "Your App Name",
-        appUrl: "https:
+        appUrl: "https://your-app.com",
         email: "support@yourapp.com",
       },
     },
@@ -93,8 +99,7 @@ const uSwap = createUSwap({
     },
     integrations: {
       trezor: {
-        appName: "Your App Name",
-        appUrl: "https:
+        appUrl: "https://your-app.com",
         email: "support@yourapp.com",
       },
     },
@@ -269,7 +274,7 @@ await uSwap.connectTrezor([Chain.Bitcoin], NetworkDerivationPath.BTC);
 
 async function sendBitcoin() {
   const recipient = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("BTC.BTC", 0.001);
+  const amount = AssetValue.from({ asset: "BTC.BTC", value: 0.001 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -288,7 +293,7 @@ async function sendBitcoin() {
 
 async function sendBitcoinWithCustomFee() {
   const recipient = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-  const amount = AssetValue.fromChainOrSignature("BTC.BTC", 0.001);
+  const amount = AssetValue.from({ asset: "BTC.BTC", value: 0.001 });
 
   try {
     const wallet = await uSwap.getWalletWithBalance(Chain.Bitcoin);
@@ -329,7 +334,7 @@ await uSwap.connectTrezor([Chain.Ethereum], NetworkDerivationPath.ETH);
 
 async function sendEthereum() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+  const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -347,10 +352,10 @@ async function sendEthereum() {
 
 async function sendERC20Token() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature(
-    "ETH.USDC-0xA0B86A33E6441E89D5E4C4EDF4C8DF4C0E6C62F6",
-    100
-  );
+  const amount = AssetValue.from({
+    asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    value: 100,
+  });
 
   try {
     const txHash = await uSwap.transfer({
@@ -386,7 +391,7 @@ await uSwap.connectTrezor([Chain.BitcoinCash], NetworkDerivationPath.BCH);
 
 async function sendBitcoinCash() {
   const recipient = "bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy";
-  const amount = AssetValue.fromChainOrSignature("BCH.BCH", 0.01);
+  const amount = AssetValue.from({ asset: "BCH.BCH", value: 0.01 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -536,14 +541,14 @@ async function diagnosticConnection() {
 
 async function checkTrezorBridge() {
   try {
-    const response = await fetch('http:
+    const response = await fetch('http://127.0.0.1:21325/', { method: 'POST' });
     const status = await response.json();
 
     console.log("Trezor Bridge status:", status);
     return { running: true, status };
   } catch (error) {
     console.log("❌ Trezor Bridge not running");
-    console.log("Download and install from: https:
+    console.log("Download and install from: https://trezor.io/trezor-suite");
     return { running: false };
   }
 }
@@ -627,7 +632,7 @@ async function verifyAddressOnDevice() {
 }
 
 async function secureTransaction() {
-  const amount = AssetValue.fromChainOrSignature("BTC.BTC", 0.001);
+  const amount = AssetValue.from({ asset: "BTC.BTC", value: 0.001 });
   const recipient = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
 
   console.log("📋 Transaction Details:");
@@ -649,7 +654,7 @@ async function transactionWithTimeout() {
   const timeoutMs = 60000;
 
   const transactionPromise = uSwap.transfer({
-    assetValue: AssetValue.fromChainOrSignature("BTC.BTC", 0.001),
+    assetValue: AssetValue.from({ asset: "BTC.BTC", value: 0.001 }),
     recipient: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
   });
 
@@ -680,11 +685,10 @@ const uSwap = USwap({
   config: {
     integrations: {
       trezor: {
-        appName: "Your App Name",
-        appUrl: "https:
+        appUrl: "https://your-app.com",
         email: "support@yourapp.com",
 
-        connectSrc: "https:
+        connectSrc: "https://connect.trezor.io/9/",
         lazyLoad: true,
         popup: true,
         webusb: false,
@@ -693,8 +697,8 @@ const uSwap = USwap({
     },
 
     rpcUrls: {
-      [Chain.Ethereum]: "https:
-      [Chain.Bitcoin]: "https:
+      [Chain.Ethereum]: ["https://ethereum-rpc.publicnode.com"],
+      [Chain.Bitcoin]: ["https://bitcoin-rpc.publicnode.com"],
     },
   },
   wallets: { ...trezorWallet },
@@ -778,7 +782,6 @@ export function TrezorWallet({ onConnect, onError }: TrezorWalletProps) {
     config: {
       integrations: {
         trezor: {
-          appName: "My DApp",
           appUrl: window.location.origin,
           email: "support@mydapp.com",
         },

@@ -1,0 +1,51 @@
+---
+title: KeepKey Browser Extension Integration
+description: Connect a KeepKey through the KeepKey browser extension (BEX) to TCSwap
+---
+
+The KeepKey browser extension (BEX) is supported through `keepkeyBexWallet`, which adds the `connectKeepkeyBex` method to your TCSwap client (`WalletOption.KEEPKEY_BEX`). It talks to the providers the extension injects under `window.keepkey`. For the KeepKey Desktop (REST bridge) integration, see the KeepKey hardware page (`keepkeyWallet`, `connectKeepkey`).
+
+## Supported Chains
+
+These chains connect with full wallet methods:
+
+- **EVM**: Arbitrum, Avalanche, Base, BNB Smart Chain, Ethereum, Optimism, Polygon
+- **UTXO**: Bitcoin, Bitcoin Cash, Dash, Dogecoin, Litecoin
+- **Cosmos ecosystem**: Cosmos Hub, THORChain, Maya
+
+`KEEPKEY_BEX_SUPPORTED_CHAINS` also lists Kujira, Ripple, Solana and X Layer, but in the current implementation they are not functional: Kujira, Ripple and Solana have no provider mapping (connecting throws `wallet_provider_not_found`), and X Layer gets an address but no wallet methods.
+
+## Installation and Import
+
+```bash
+bun add @tcswap/sdk
+```
+
+```ts twoslash
+import { Chain, USwap, keepkeyBexWallet } from "@tcswap/sdk";
+```
+
+## Connecting
+
+```ts twoslash
+import { AssetValue, Chain, USwap, keepkeyBexWallet } from "@tcswap/sdk";
+
+const uSwap = USwap({
+  config: { apiKeys: { uSwap: "your-api-key" } },
+  wallets: { ...keepkeyBexWallet },
+});
+
+await uSwap.connectKeepkeyBex([Chain.Bitcoin, Chain.Ethereum, Chain.THORChain]);
+
+const txHash = await uSwap.transfer({
+  assetValue: AssetValue.from({ asset: "BTC.BTC", value: 0.001 }),
+  recipient: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+});
+```
+
+## Notes
+
+- Without `window.keepkey`, connecting throws `wallet_keepkey_not_found`.
+- UTXO, THORChain and Maya transfers are signed and sent by the extension; the THORChain and Maya wallets also expose `deposit`. UTXO balances are read from the extension (`request_balance`).
+- Cosmos Hub uses the extension's amino signer (`window.keepkey.cosmos`).
+- When connecting an EVM chain other than Ethereum, the extension is asked to switch to (or add) that network.

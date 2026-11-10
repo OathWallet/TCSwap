@@ -1,0 +1,48 @@
+---
+title: Talisman Wallet Integration
+description: Connect the Talisman browser extension to TCSwap for EVM chains, Polkadot and Chainflip
+---
+
+The Talisman browser extension is supported through `talismanWallet`, which adds the `connectTalisman` method to your TCSwap client (`WalletOption.TALISMAN`).
+
+## Supported Chains
+
+`connectTalisman` accepts the following chains (`TALISMAN_SUPPORTED_CHAINS`):
+
+- **EVM**: Arbitrum, Avalanche, Base, BNB Smart Chain, Ethereum, Monad, Optimism, Polygon, X Layer
+- **Substrate**: Polkadot, Chainflip
+
+## Installation and Import
+
+```bash
+bun add @tcswap/sdk
+```
+
+```ts twoslash
+import { Chain, USwap, talismanWallet } from "@tcswap/sdk";
+```
+
+## Connecting
+
+```ts twoslash
+import { AssetValue, Chain, USwap, talismanWallet } from "@tcswap/sdk";
+
+const uSwap = USwap({
+  config: { apiKeys: { uSwap: "your-api-key" } },
+  wallets: { ...talismanWallet },
+});
+
+await uSwap.connectTalisman([Chain.Polkadot, Chain.Ethereum]);
+
+const dotAddress = uSwap.getAddress(Chain.Polkadot);
+
+const txHash = await uSwap.transfer({
+  assetValue: AssetValue.from({ chain: Chain.Polkadot, value: 1 }),
+  recipient: "RECIPIENT_POLKADOT_ADDRESS",
+});
+```
+
+## Notes
+
+- EVM chains use `window.talismanEth`; if it is missing, connecting throws `wallet_talisman_not_found`. When connecting an EVM chain other than Ethereum, Talisman is asked to switch to (or add) that network; a failure throws `wallet_failed_to_add_or_switch_network`.
+- Polkadot and Chainflip use the Polkadot extension API (`window.injectedWeb3.talisman`). If the extension cannot be enabled, connecting throws `wallet_talisman_not_enabled`. The first account Talisman returns is used, converted to the chain's SS58 prefix.

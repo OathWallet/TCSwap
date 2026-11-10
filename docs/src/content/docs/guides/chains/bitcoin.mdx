@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Bitcoin Integration
 description: Complete guide to integrating Bitcoin with TCSwap SDK for UTXO operations and cross-chain swaps
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem, Code } from "@astrojs/starlight/components";
 
@@ -12,11 +13,11 @@ This guide covers Bitcoin integration with TCSwap, including wallet connections,
 
 Bitcoin is the first and most valuable cryptocurrency, using a UTXO (Unspent Transaction Output) model. TCSwap provides comprehensive Bitcoin support through:
 
-- **Bitcoin Toolbox**: UTXO management and transaction construction
+- **UTXO Toolbox**: UTXO selection, PSBT construction and signing
 - **Cross-Chain Swaps**: Seamless swaps with other cryptocurrencies via THORChain
 - **Multi-Wallet Support**: Compatible with hardware wallets and software wallets
 - **Fee Optimization**: Dynamic fee estimation based on network conditions
-- **Address Formats**: Support for Legacy, SegWit, and Native SegWit addresses
+- **Address Formats**: Native SegWit (`bc1q...`) derivation by default, with sending to Legacy, P2SH and bech32 addresses
 
 ## Getting Started
 
@@ -40,29 +41,31 @@ import { createUSwap, Chain } from '@tcswap/sdk';
 
 const uSwap = createUSwap();
 
-const btcWallet = await uSwap.getWallet(Chain.Bitcoin);
+await uSwap.connectKeystore([Chain.Bitcoin], "your twelve word mnemonic phrase here");
 
-````
+const btcWallet = uSwap.getWalletByChain(Chain.Bitcoin);
+```
 </TabItem>
 <TabItem label="Standalone Toolbox">
 ```typescript
 // @noErrorValidation
-import { getBitcoinToolbox } from '@tcswap/toolboxes/utxo';
+import { Chain } from '@tcswap/helpers';
+import { getUtxoToolbox } from '@tcswap/toolboxes/utxo';
 
-
-const btcToolbox = await getBitcoinToolbox({
+const btcToolbox = await getUtxoToolbox(Chain.Bitcoin, {
   phrase: "your twelve word mnemonic phrase here",
-
-  derivationPath: [84, 0, 0, 0, 0]
+  // Optional, defaults to [84, 0, 0, 0, 0]
+  derivationPath: [84, 0, 0, 0, 0],
 });
 
-
-const btcToolbox = await getBitcoinToolbox({
+// Or with a custom signer ({ getAddress, signTransaction(psbt) })
+const btcSignerToolbox = await getUtxoToolbox(Chain.Bitcoin, {
   signer: customBitcoinSigner,
-  network: "mainnet"
 });
-````
 
+// Read-only (no signer): balances, fees, validation
+const btcReadOnlyToolbox = await getUtxoToolbox(Chain.Bitcoin);
+```
 </TabItem>
 </Tabs>
 
@@ -80,27 +83,28 @@ await uSwap.connectKeystore([Chain.Bitcoin], "your mnemonic phrase");
 
 await uSwap.connectLedger([Chain.Bitcoin]);
 
-await uSwap.connectTrezor([Chain.Bitcoin]);
+await uSwap.connectTrezor([Chain.Bitcoin], [84, 0, 0, 0, 0]);
 
-await uSwap.connectKeepKey([Chain.Bitcoin]);
+await uSwap.connectKeepkey([Chain.Bitcoin]);
 ```
 
-### Address Generation
+### Addresses
 
-Bitcoin supports multiple address formats:
+The keystore and toolbox derive a Native SegWit address from the configured derivation path:
 
 ```typescript
 // @noErrorValidation
 
-const addresses = {
-  nativeSegwit: uSwap.getAddress(Chain.Bitcoin),
+const address = uSwap.getAddress(Chain.Bitcoin);
 
-  legacy: await btcToolbox.getAddress(0, false, "legacy"),
+const toolboxAddress = await btcToolbox.getAddress();
 
-  segwit: await btcToolbox.getAddress(0, false, "segwit"),
-};
-
-console.log("Bitcoin addresses:", addresses);
+// Derive a different account index
+const secondAccount = await getUtxoToolbox(Chain.Bitcoin, {
+  phrase: "your mnemonic phrase",
+  index: 1,
+});
+console.log("Second address:", await secondAccount.getAddress());
 ```
 
 ### Bitcoin Transfers
@@ -120,40 +124,40 @@ const txHash = await uSwap.transfer({
 
 console.log(`Bitcoin transaction hash: ${txHash}`);
 
+// Explicit fee rate in sats/vbyte
 const customFeeTx = await btcToolbox.transfer({
   recipient: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
   assetValue: AssetValue.from({ chain: Chain.Bitcoin, value: "0.001" }),
   feeRate: 20,
+  memo: "optional OP_RETURN memo",
 });
 ```
 
 ### UTXO Management
 
-Bitcoin uses UTXOs (Unspent Transaction Outputs) instead of account balances:
+Bitcoin uses UTXOs (Unspent Transaction Outputs) instead of account balances. UTXO selection happens automatically in `transfer()`; use `createTransaction()` to build an unsigned PSBT yourself:
 
 ```typescript
 // @noErrorValidation
+import { getUtxoApi } from "@tcswap/toolboxes/utxo";
 
-const utxos = await btcToolbox.getUTXOs(
-  "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
-);
+const sender = await btcToolbox.getAddress();
 
-console.log("Available UTXOs:");
+const utxos = await getUtxoApi(Chain.Bitcoin).getUtxos({ address: sender });
+
 utxos.forEach((utxo, index) => {
-  console.log(
-    `UTXO ${index}: ${utxo.value} sats (${utxo.txHash}:${utxo.index})`
-  );
+  console.log(`UTXO ${index}: ${utxo.value} sats (${utxo.hash}:${utxo.index})`);
 });
 
-const txParams = await btcToolbox.buildTransaction({
+const { psbt, inputs } = await btcToolbox.createTransaction({
+  sender,
   recipient: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
   assetValue: AssetValue.from({ chain: Chain.Bitcoin, value: "0.001" }),
   feeRate: 15,
-  utxos: utxos.slice(0, 2),
 });
 
-console.log(`Transaction size: ${txParams.size} bytes`);
-console.log(`Transaction fee: ${txParams.fee} sats`);
+console.log(`Selected ${inputs.length} inputs`);
+console.log("Unsigned PSBT:", psbt.toBase64());
 ```
 
 ### Fee Estimation
@@ -165,59 +169,44 @@ Bitcoin fees are dynamic based on network congestion:
 
 const feeRates = await btcToolbox.getFeeRates();
 console.log({
-  slow: feeRates.average,
-  standard: feeRates.fast,
-  fast: feeRates.fastest,
+  average: feeRates[FeeOption.Average],
+  fast: feeRates[FeeOption.Fast],
+  fastest: feeRates[FeeOption.Fastest],
 });
 
+const sender = await btcToolbox.getAddress();
+
 const feeEstimate = await btcToolbox.estimateTransactionFee({
+  sender,
   recipient: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
   assetValue: AssetValue.from({ chain: Chain.Bitcoin, value: "0.01" }),
   feeOptionKey: FeeOption.Fast,
 });
 
-console.log(`Estimated fee: ${feeEstimate.toNumber()} sats`);
+console.log(`Estimated fee: ${feeEstimate.getValue("string")} BTC`);
 
-const feePriorities = [FeeOption.Average, FeeOption.Fast, FeeOption.Fastest];
-for (const priority of feePriorities) {
-  const fee = await btcToolbox.estimateTransactionFee({
-    recipient: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-    assetValue: AssetValue.from({ chain: Chain.Bitcoin, value: "0.01" }),
-    feeOptionKey: priority,
-  });
-  console.log(`${priority} fee: ${fee.toNumber()} sats`);
-}
+const maxSendable = await btcToolbox.estimateMaxSendableAmount({
+  from: sender,
+  feeOptionKey: FeeOption.Fast,
+});
+
+console.log(`Max sendable: ${maxSendable.getValue("string")} BTC`);
 ```
 
-### Transaction History
+### Balances
 
 ```typescript
 // @noErrorValidation
 
-const transactions = await btcToolbox.getTransactionHistory(
-  "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-  0,
-  10
+const balances = await btcToolbox.getBalance(
+  "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
 );
+const btcBalance = balances.find((asset) => asset.isGasAsset);
 
-console.log("Recent transactions:");
-transactions.forEach((tx) => {
-  console.log(`${tx.hash}: ${tx.amount} BTC (${tx.type})`);
-  console.log(`  Block: ${tx.blockHeight}, Confirmations: ${tx.confirmations}`);
-  console.log(`  Date: ${new Date(tx.date)}`);
-});
+console.log(`Balance: ${btcBalance?.getValue("string")} BTC`);
 
-const txDetails = await btcToolbox.getTransaction(
-  "abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd"
-);
-
-console.log("Transaction details:", {
-  hash: txDetails.hash,
-  inputs: txDetails.inputs.length,
-  outputs: txDetails.outputs.length,
-  fee: txDetails.fee,
-  confirmations: txDetails.confirmations,
-});
+// Via the connected uSwap wallet (refreshes from the network)
+const [walletBalance] = await uSwap.getBalance(Chain.Bitcoin, true);
 ```
 
 ## Cross-Chain Swaps
@@ -226,174 +215,102 @@ Bitcoin is fully supported in THORChain cross-chain swaps:
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const btcToEthQuote = await uSwap.getQuote({
+const { routes } = await USwapApi.getSwapQuote({
   sellAsset: "BTC.BTC",
   sellAmount: "0.1",
   buyAsset: "ETH.ETH",
-  senderAddress: uSwap.getAddress(Chain.Bitcoin),
-  recipientAddress: uSwap.getAddress(Chain.Ethereum),
+  sourceAddress: uSwap.getAddress(Chain.Bitcoin),
+  destinationAddress: uSwap.getAddress(Chain.Ethereum),
+  slippage: 3,
 });
 
+const [bestRoute] = routes;
+
 console.log("BTC -> ETH quote:", {
-  expectedOutput: btcToEthQuote.expectedOutput,
-  fees: btcToEthQuote.fees,
-  timeEstimate: btcToEthQuote.timeEstimate,
+  expectedOutput: bestRoute.expectedBuyAmount,
+  fees: bestRoute.fees,
+  estimatedTime: bestRoute.estimatedTime,
 });
 
 const swapTx = await uSwap.swap({
-  route: btcToEthQuote.routes[0],
+  route: bestRoute,
   feeOptionKey: FeeOption.Fast,
 });
 
-const btcToUsdcQuote = await uSwap.getQuote({
+const btcToUsdcQuote = await USwapApi.getSwapQuote({
   sellAsset: "BTC.BTC",
   sellAmount: "0.05",
   buyAsset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-  senderAddress: uSwap.getAddress(Chain.Bitcoin),
-  recipientAddress: uSwap.getAddress(Chain.Ethereum),
+  sourceAddress: uSwap.getAddress(Chain.Bitcoin),
+  destinationAddress: uSwap.getAddress(Chain.Ethereum),
 });
 
-const btcToRuneQuote = await uSwap.getQuote({
+const btcToRuneQuote = await USwapApi.getSwapQuote({
   sellAsset: "BTC.BTC",
   sellAmount: "0.01",
   buyAsset: "THOR.RUNE",
-  senderAddress: uSwap.getAddress(Chain.Bitcoin),
-  recipientAddress: uSwap.getAddress(Chain.THORChain),
+  sourceAddress: uSwap.getAddress(Chain.Bitcoin),
+  destinationAddress: uSwap.getAddress(Chain.THORChain),
 });
 ```
 
 ## Advanced Bitcoin Features
 
-### Multi-Signature Transactions
+### Custom Signing Flow
+
+Build the PSBT with the toolbox, sign it with any signer, and broadcast the raw transaction:
 
 ```typescript
 // @noErrorValidation
 
-const publicKeys = [
-  "03a34b99f22c790c4e36b2b3c2c35a36db06226e41c692fc82b8b56ac1c540c5bd",
-  "03b6d8a48ac51b4c5d0c83b6e0b5e3f4d7e8c9a1b2c3d4e5f6a7b8c9d0e1f2a3b4",
-  "03c7e9f5ac2cd61e8a9b7f4e1d2c3b4a5968a7d6c5b4a398f2e1d7c6b5a49382f1",
-];
+const sender = await btcToolbox.getAddress();
 
-const multiSigAddress = await btcToolbox.createMultiSigAddress(publicKeys, 2);
-
-console.log("Multi-sig address:", multiSigAddress);
-
-const partialTx = await btcToolbox.buildMultiSigTransaction({
-  multisigAddress: multiSigAddress,
+const { psbt } = await btcToolbox.createTransaction({
+  sender,
   recipient: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
   assetValue: AssetValue.from({ chain: Chain.Bitcoin, value: "0.005" }),
   feeRate: 20,
 });
 
-const signedTx1 = await btcToolbox.signTransaction(partialTx, 0);
+const signedPsbt = await customBitcoinSigner.signTransaction(psbt);
+signedPsbt.finalizeAllInputs();
 
-const fullySignedTx = await btcToolbox.signTransaction(signedTx1, 1);
-
-const multiSigTxHash = await btcToolbox.broadcastTransaction(fullySignedTx);
+const txHash = await btcToolbox.broadcastTx(signedPsbt.extractTransaction().toHex());
 ```
 
-### SegWit Optimization
+### Transaction Size
 
 ```typescript
 // @noErrorValidation
+import { UTXOScriptType } from "@tcswap/toolboxes/utxo";
 
-const nativeSegwitTx = await btcToolbox.transfer({
-  recipient: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-  assetValue: AssetValue.from({ chain: Chain.Bitcoin, value: "0.01" }),
+const sender = await btcToolbox.getAddress();
+
+const txSize = btcToolbox.calculateTxSize({
+  inputs: [
+    { hash: "", index: 0, value: 50000, type: UTXOScriptType.P2WPKH, address: sender },
+    { hash: "", index: 1, value: 50000, type: UTXOScriptType.P2WPKH, address: sender },
+  ],
+  outputs: [{ address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh", value: 80000 }],
   feeRate: 15,
-  addressFormat: "nativeSegwit",
 });
 
-const legacySize = await btcToolbox.estimateTransactionSize({
-  inputs: 2,
-  outputs: 2,
-  addressFormat: "legacy",
-});
-
-const segwitSize = await btcToolbox.estimateTransactionSize({
-  inputs: 2,
-  outputs: 2,
-  addressFormat: "nativeSegwit",
-});
-
-console.log(`Legacy tx size: ${legacySize} bytes`);
-console.log(`SegWit tx size: ${segwitSize} bytes`);
-console.log(
-  `Size reduction: ${(((legacySize - segwitSize) / legacySize) * 100).toFixed(
-    1
-  )}%`
-);
-```
-
-### Custom Scripts
-
-```typescript
-// @noErrorValidation
-
-const scriptHash = "a914b7fcb4e6fb3c3c2dbf55e9e8a28d1e8b5c9a3b2187";
-
-const p2shTx = await btcToolbox.transfer({
-  recipient: scriptHash,
-  assetValue: AssetValue.from({ chain: Chain.Bitcoin, value: "0.002" }),
-  feeRate: 20,
-  scriptType: "p2sh",
-});
-
-const timelockTx = await btcToolbox.buildTransaction({
-  recipient: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-  assetValue: AssetValue.from({ chain: Chain.Bitcoin, value: "0.001" }),
-  feeRate: 15,
-  lockTime: 750000,
-});
+console.log(`Estimated tx size: ${txSize} vbytes`);
 ```
 
 ## Network Configuration
 
-### Custom Node Setup
+### UTXO Data Provider
+
+UTXO chains read balances, UTXOs and fee rates from Blockchair (with public fallbacks for Bitcoin). Set an API key to avoid rate limits; `blockchairApiUrl` in `envs` can point the requests at your own proxy:
 
 ```typescript
 // @noErrorValidation
-import { USwapConfig } from '@tcswap/sdk';
+import { USwapConfig } from "@tcswap/sdk";
 
-
-USwapConfig.setRpcUrl(Chain.Bitcoin, [
-  "https:
-  "https:
-  "https:
-]);
-
-
-const customBitcoinRpc = "https:
-USwapConfig.setRpcUrl(Chain.Bitcoin, customBitcoinRpc);
-
-
-const btcToolbox = await getBitcoinToolbox({
-  phrase: "your mnemonic",
-  network: "mainnet",
-  apiUrl: "https:
-});
-```
-
-### Working with Bitcoin Testnet
-
-```typescript
-// @noErrorValidation
-
-USwapConfig.setRpcUrl(Chain.Bitcoin, "https:
-USwapConfig.setEnv('isMainnet', false);
-
-
-const testnetToolbox = await getBitcoinToolbox({
-  phrase: "your mnemonic",
-  network: "testnet",
-  derivationPath: [84, 1, 0, 0, 0]
-});
-
-
-const testnetAddress = testnetToolbox.getAddress();
-console.log("Testnet address:", testnetAddress);
+USwapConfig.setApiKey("blockchair", "your-blockchair-api-key");
 ```
 
 ## Error Handling
@@ -410,24 +327,23 @@ try {
   });
 } catch (error) {
   if (error instanceof USwapError) {
-    switch (error.code) {
-      case "toolbox_bitcoin_insufficient_funds":
+    const errorKey = error.message.split(":")[0];
+
+    switch (errorKey) {
+      case "toolbox_utxo_insufficient_balance":
         console.error("Insufficient Bitcoin balance");
         break;
-      case "toolbox_bitcoin_fee_too_high":
-        console.error("Transaction fee exceeds amount");
-        break;
-      case "toolbox_bitcoin_invalid_address":
+      case "toolbox_utxo_invalid_address":
         console.error("Invalid Bitcoin address format");
         break;
-      case "toolbox_bitcoin_utxo_not_found":
-        console.error("Required UTXO not found or spent");
+      case "toolbox_utxo_no_signer":
+        console.error("No signer configured for this toolbox");
         break;
-      case "toolbox_bitcoin_network_error":
-        console.error("Bitcoin network error:", error.cause);
+      case "toolbox_utxo_broadcast_failed":
+        console.error("Broadcast failed:", error.cause);
         break;
-      case "toolbox_bitcoin_transaction_too_large":
-        console.error("Transaction size exceeds limits");
+      case "toolbox_utxo_api_error":
+        console.error("UTXO data provider error:", error.cause);
         break;
       default:
         console.error("Unknown Bitcoin error:", error);
@@ -438,74 +354,28 @@ try {
 
 ## Performance Optimization
 
-### UTXO Consolidation
-
-```typescript
-// @noErrorValidation
-
-const consolidateUTXOs = async () => {
-  const address = uSwap.getAddress(Chain.Bitcoin);
-  const utxos = await btcToolbox.getUTXOs(address);
-
-  const smallUTXOs = utxos.filter((utxo) => utxo.value < 100000);
-
-  if (smallUTXOs.length > 10) {
-    console.log(`Consolidating ${smallUTXOs.length} small UTXOs`);
-
-    const consolidationTx = await btcToolbox.transfer({
-      recipient: address,
-      assetValue: AssetValue.from({
-        chain: Chain.Bitcoin,
-        value: (
-          smallUTXOs.reduce((sum, utxo) => sum + utxo.value, 0) / 100000000
-        ).toString(),
-      }),
-      feeRate: 5,
-      utxos: smallUTXOs,
-    });
-
-    console.log("Consolidation transaction:", consolidationTx);
-  }
-};
-```
-
 ### Fee Optimization
 
 ```typescript
 // @noErrorValidation
 
-const optimizeFee = async (
-  amount: string,
-  urgency: "low" | "medium" | "high"
-) => {
+const optimizeFee = async (urgency: "low" | "medium" | "high") => {
   const feeRates = await btcToolbox.getFeeRates();
 
-  let selectedFeeRate: number;
   switch (urgency) {
     case "low":
-      selectedFeeRate = Math.min(feeRates.average, 10);
-      break;
+      return feeRates[FeeOption.Average];
     case "medium":
-      selectedFeeRate = feeRates.fast;
-      break;
+      return feeRates[FeeOption.Fast];
     case "high":
-      selectedFeeRate = feeRates.fastest;
-      break;
+      return feeRates[FeeOption.Fastest];
   }
-
-  const amountSats = parseFloat(amount) * 100000000;
-  if (amountSats > 10000000) {
-    selectedFeeRate = Math.max(selectedFeeRate, feeRates.fast);
-  }
-
-  return selectedFeeRate;
 };
 
-const optimalFeeRate = await optimizeFee("0.05", "medium");
 const optimizedTx = await btcToolbox.transfer({
   recipient: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
   assetValue: AssetValue.from({ chain: Chain.Bitcoin, value: "0.05" }),
-  feeRate: optimalFeeRate,
+  feeRate: await optimizeFee("medium"),
 });
 ```
 
@@ -524,45 +394,26 @@ const optimizedTx = await btcToolbox.transfer({
    ```typescript
    const feeRates = await btcToolbox.getFeeRates();
 
-   if (feeRates.fast > 50) {
+   if (feeRates[FeeOption.Fast] > 50) {
      console.warn("Bitcoin network congested, consider waiting");
-   }
-
-   if (feeRates.average < 20) {
-     console.log("Good time for low-fee transactions");
    }
    ```
 
 3. **Validate Addresses**:
 
    ```typescript
-   import { validateBitcoinAddress } from "@tcswap/toolboxes/utxo";
-
-   const isValid = validateBitcoinAddress(recipient);
-   if (!isValid) {
+   if (!btcToolbox.validateAddress(recipient)) {
      throw new Error("Invalid Bitcoin address");
    }
-   ```
-
-4. **Handle Confirmation Times**:
-
-   ```typescript
-   const handleConfirmations = (feeRate: number) => {
-     if (feeRate < 5) return "6+ hours";
-     if (feeRate < 20) return "1-6 hours";
-     if (feeRate < 50) return "10-60 minutes";
-     return "10-30 minutes";
-   };
-
-   const estimatedTime = handleConfirmations(20);
-   console.log(`Expected confirmation time: ${estimatedTime}`);
    ```
 
 ## Address Validation
 
 ```typescript
 // @noErrorValidation
-import { validateBitcoinAddress } from "@tcswap/toolboxes/utxo";
+import { Chain, getAddressValidator } from "@tcswap/sdk";
+
+const validateAddress = await getAddressValidator();
 
 const addresses = [
   "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
@@ -571,17 +422,9 @@ const addresses = [
 ];
 
 addresses.forEach((address) => {
-  const isValid = validateBitcoinAddress(address);
-  const format = detectAddressFormat(address);
-  console.log(`${address}: ${isValid ? "Valid" : "Invalid"} (${format})`);
+  const isValid = validateAddress({ address, chain: Chain.Bitcoin });
+  console.log(`${address}: ${isValid ? "Valid" : "Invalid"}`);
 });
-
-const detectAddressFormat = (address: string): string => {
-  if (address.startsWith("bc1")) return "Native SegWit";
-  if (address.startsWith("3")) return "SegWit (P2SH)";
-  if (address.startsWith("1")) return "Legacy";
-  return "Unknown";
-};
 ```
 
 ## Troubleshooting
@@ -591,70 +434,43 @@ const detectAddressFormat = (address: string): string => {
 1. **Insufficient funds for fee**:
 
    ```typescript
-   const balance = await btcToolbox.getBalance(address);
-   const fee = await btcToolbox.estimateTransactionFee({
-     recipient: "bc1q...",
-     assetValue: AssetValue.from({ chain: Chain.Bitcoin, value: "0.01" }),
+   const sender = await btcToolbox.getAddress();
+   const maxSendable = await btcToolbox.estimateMaxSendableAmount({
+     from: sender,
      feeOptionKey: FeeOption.Fast,
    });
 
-   if (balance.lte(fee)) {
-     console.error("Insufficient funds to cover transaction fee");
+   const amount = AssetValue.from({ chain: Chain.Bitcoin, value: "0.01" });
+
+   if (maxSendable.lt(amount)) {
+     console.error("Insufficient funds to cover amount plus fee");
    }
    ```
 
-2. **Transaction stuck in mempool**:
-
-   ```typescript
-   const checkTxStatus = async (txHash: string) => {
-     const tx = await btcToolbox.getTransaction(txHash);
-     if (tx.confirmations === 0) {
-       console.log("Transaction still in mempool");
-     }
-   };
-   ```
-
-3. **Address format mismatch**:
-
-   ```typescript
-   const validateCompatibility = (
-     senderFormat: string,
-     recipientFormat: string
-   ) => {
-     console.log(`Sending from ${senderFormat} to ${recipientFormat}`);
-     if (senderFormat === "legacy" && recipientFormat === "nativeSegwit") {
-       console.warn("Consider upgrading sender to SegWit for lower fees");
-     }
-   };
-   ```
+2. **"No Blockchair API key found" warning**: set `USwapConfig.setApiKey("blockchair", ...)`; without a key, requests fall back to rate-limited public endpoints.
 
 ## API Reference Summary
 
 ### Core Methods
 
-- `getBalance()` - Get Bitcoin balance in BTC
+- `getBalance(address)` - Get balances as `AssetValue[]`
 - `transfer()` - Send Bitcoin with automatic UTXO selection
-- `buildTransaction()` - Construct transaction with custom parameters
-- `getUTXOs()` - Fetch unspent transaction outputs
-- `getTransactionHistory()` - Get transaction history
+- `createTransaction()` - Build an unsigned PSBT with selected inputs
+- `broadcastTx(txHex)` - Broadcast a signed raw transaction
 
 ### Fee Management
 
-- `getFeeRates()` - Get current network fee rates
-- `estimateTransactionFee()` - Estimate fee for transaction
-- `estimateTransactionSize()` - Estimate transaction size in bytes
+- `getFeeRates()` - Get current fee rates per `FeeOption`
+- `estimateTransactionFee()` - Estimate fee for a transaction
+- `estimateMaxSendableAmount()` - Balance minus estimated fee
+- `calculateTxSize()` - Estimate transaction size in vbytes
 
-### Address Methods
+### Address and Key Methods
 
-- `getAddress()` - Generate address for different formats
-- `validateAddress()` - Validate Bitcoin address format
-- `createMultiSigAddress()` - Create multi-signature address
-
-### Transaction Methods
-
-- `getTransaction()` - Get transaction details by hash
-- `broadcastTransaction()` - Broadcast signed transaction
-- `signTransaction()` - Sign transaction with private key
+- `getAddress()` - Address of the configured signer
+- `validateAddress(address)` - Validate Bitcoin address format
+- `createKeysForPath()` / `getAddressFromKeys()` - Derive keys and addresses
+- `getPrivateKeyFromMnemonic()` - Export a WIF private key
 
 ## Next Steps
 

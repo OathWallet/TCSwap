@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: NEAR Integration
 description: Complete guide to integrating NEAR Protocol with TCSwap
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem, Code } from "@astrojs/starlight/components";
 
@@ -36,11 +37,13 @@ npm install @tcswap/toolboxes @tcswap/plugins
 <TabItem label="With SDK">
 ```typescript
 // @noErrorValidation
-import { createUSwap } from '@tcswap/sdk';
+import { Chain, createUSwap } from '@tcswap/sdk';
 
 const uSwap = createUSwap();
 
-const nearWallet = await uSwap.getWallet(Chain.Near);
+await uSwap.connectKeystore([Chain.Near], "your twelve word mnemonic phrase here");
+
+const nearWallet = uSwap.getWalletByChain(Chain.Near);
 
 ````
 </TabItem>
@@ -52,14 +55,12 @@ import { getNearToolbox } from '@tcswap/toolboxes/near';
 
 const nearToolbox = await getNearToolbox({
   phrase: "your twelve word mnemonic phrase here",
-
-  derivationPath: [44, 397, 0, 0, 0]
+  derivationPath: [44, 397, 0, 0, 0],
 });
 
-
-const nearToolbox = await getNearToolbox({
+const signerToolbox = await getNearToolbox({
   signer: customNearSigner,
-  accountId: "your-account.near"
+  accountId: "your-account.near",
 });
 ````
 
@@ -82,7 +83,7 @@ const toolbox = await getNearToolbox({
   phrase: "your mnemonic phrase",
 });
 
-const accountId = toolbox.getAddress();
+const accountId = await toolbox.getAddress();
 console.log(accountId);
 
 const publicKey = await toolbox.getPublicKey();
@@ -109,7 +110,7 @@ console.log(`Transaction hash: ${txHash}`);
 
 ### NEP-141 Token Transfers
 
-NEP-141 is NEAR's fungible token standard, similar to ERC-20 on Ethereum.
+NEP-141 is NEAR's fungible token standard, similar to ERC-20 on Ethereum. When the asset has a contract address, `transfer` checks the recipient's storage registration and pays the storage deposit automatically if needed.
 
 ```typescript
 // @noErrorValidation
@@ -123,25 +124,6 @@ const usdcTransfer = await toolbox.transfer({
     value: "100",
   }),
 });
-
-const usdcToken = await toolbox.nep141("usdc.near");
-
-const metadata = await usdcToken.getMetadata();
-console.log(metadata);
-
-const storage = await usdcToken.getStorageBalance("receiver.near");
-if (!storage || storage.total === "0") {
-  await usdcToken.storageDeposit({
-    accountId: "receiver.near",
-    registrationOnly: true,
-  });
-}
-
-await usdcToken.ftTransfer({
-  receiverId: "receiver.near",
-  amount: "100000000",
-  memo: "USDC transfer",
-});
 ```
 
 ### Smart Contract Interactions
@@ -153,15 +135,11 @@ The NEAR toolbox provides multiple ways to interact with smart contracts:
 ```typescript
 // @noErrorValidation
 
-const result = await toolbox.callFunction({
+const txHash = await toolbox.callFunction({
   contractId: "my-contract.near",
   methodName: "set_value",
   args: { key: "name", value: "Alice" },
-  attachedDeposit: "1000000000000000000000000",
-});
-
-const value = await toolbox.viewFunction("my-contract.near", "get_value", {
-  key: "name",
+  deposit: "1000000000000000000000000",
 });
 ```
 
@@ -181,7 +159,6 @@ const contractInterface = {
 const contract = await toolbox.createContract(contractInterface);
 
 const balance = await contract.get_balance({ account: "alice.near" });
-const txResult = await contract.deposit({}, "1000000000000000000000000");
 ```
 
 ### Sub-Account Management
@@ -191,7 +168,7 @@ NEAR allows creating sub-accounts under your main account:
 ```typescript
 // @noErrorValidation
 
-const subAccountId = `sub.${accountId}.near`;
+const subAccountId = `sub.${accountId}`;
 const subAccountPubKey = "ed25519:...";
 
 const txHash = await toolbox.createSubAccount(
@@ -215,27 +192,15 @@ const transferFee = await toolbox.estimateTransactionFee({
   assetValue: AssetValue.from({ chain: Chain.Near, value: "1" }),
 });
 
-import { estimateGas } from "@tcswap/toolboxes/near";
-
-const gasEstimate = await estimateGas(
-  {
-    sender: accountId,
-    receiver: "contract.near",
-    actions: [
-      {
-        type: "FunctionCall",
-        methodName: "complex_operation",
-        args: {
-          /* ... */
-        },
-        attachedDeposit: "0",
-      },
-    ],
+const callFee = await toolbox.estimateGas({
+  contractId: "contract.near",
+  methodName: "complex_operation",
+  args: {
+    /* ... */
   },
-  account
-);
+});
 
-console.log(`Estimated gas: ${gasEstimate} TGas`);
+console.log(`Estimated cost: ${callFee.toSignificant(6)} NEAR`);
 ```
 
 ## NEAR Plugin
@@ -248,33 +213,32 @@ NEAR Names is a decentralized naming service similar to ENS on Ethereum:
 
 ```typescript
 // @noErrorValidation
-import { USwap } from "@tcswap/sdk";
+import { createUSwap } from "@tcswap/sdk";
 
-const uSwap = USwap.create();
+const uSwap = createUSwap();
 
-const isAvailable = await uSwap.nearNames.isAvailable("myname");
+const isAvailable = await uSwap.near.nearNames.isAvailable("myname");
 
 if (isAvailable) {
-  const txHash = await uSwap.nearNames.register({
+  const txHash = await uSwap.near.nearNames.register({
     name: "myname",
-
     publicKey: "ed25519:...",
   });
   console.log(`Registered myname.near: ${txHash}`);
 }
 
-const owner = await uSwap.nearNames.resolve("alice");
-console.log(`alice.near is owned by: ${owner}`);
+const accountId = await uSwap.near.nearNames.resolve("alice");
+console.log(`alice.near exists: ${accountId !== null}`);
 
-const info = await uSwap.nearNames.getInfo("alice");
+const info = await uSwap.near.nearNames.getInfo("alice");
 console.log(info);
 
-const names = await uSwap.nearNames.lookupNames(
+const names = await uSwap.near.nearNames.lookupNames(
   "8fac9c5b1f4e8b4c9a7d2e6f1a3b5c7d9e2f4a6b8c1d3e5f7a9b1c3d5e7f9a1b"
 );
 console.log(`Names owned: ${names}`);
 
-const transferTx = await uSwap.nearNames.transfer("myname", "new-owner.near");
+const transferTx = await uSwap.near.nearNames.transfer("myname", "new-owner.near");
 ```
 
 ### Cross-Chain Swaps via NEAR
@@ -284,18 +248,18 @@ The NEAR plugin supports cross-chain swaps using NEAR as an intermediary:
 ```typescript
 // @noErrorValidation
 
-const quote = await uSwap.getQuote({
+import { USwapApi } from "@tcswap/sdk";
+
+const { routes } = await USwapApi.getSwapQuote({
   sellAsset: "ETH.ETH",
   sellAmount: "0.1",
   buyAsset: "NEAR.NEAR",
-  senderAddress: "0x...",
-  recipientAddress: "receiver.near",
+  sourceAddress: "0x...",
+  destinationAddress: "receiver.near",
+  providers: ["NEAR"],
 });
 
-const swapTx = await uSwap.swap({
-  route: quote.routes[0],
-  recipient: "receiver.near",
-});
+const swapTx = await uSwap.swap({ route: routes[0] });
 ```
 
 ## Fee Rate Configuration
@@ -325,7 +289,7 @@ try {
   });
 } catch (error) {
   if (error instanceof USwapError) {
-    switch (error.code) {
+    switch (error.message.split(":")[0]) {
       case "toolbox_near_no_signer":
         console.error("No signer available");
         break;
@@ -352,24 +316,13 @@ try {
 
 ### Custom Signer Implementation
 
-You can provide your own signer implementation:
+You can provide your own signer (any `NearSigner` implementation), for example one built from a private key:
 
 ```typescript
 // @noErrorValidation
-import { KeyPair } from "near-api-js/lib/utils";
+import { getNearSignerFromPrivateKey, getNearToolbox } from "@tcswap/toolboxes/near";
 
-const customSigner = {
-  keyPair: KeyPair.fromString("ed25519:..."),
-
-  async getPublicKey() {
-    return this.keyPair.getPublicKey();
-  },
-
-  async signMessage(message: Uint8Array) {
-    const signature = this.keyPair.sign(message);
-    return { signature: signature.signature };
-  },
-};
+const customSigner = await getNearSignerFromPrivateKey("ed25519:...");
 
 const toolbox = await getNearToolbox({
   signer: customSigner,
@@ -387,7 +340,7 @@ import { USwapConfig } from '@tcswap/sdk';
 
 
 USwapConfig.setEnv('isStagenet', true);
-USwapConfig.setRpcUrl(Chain.Near, 'https:
+USwapConfig.setRpcUrl(Chain.Near, ['https://rpc.mainnet.near.org']);
 
 
 const toolbox = await getNearToolbox({ phrase: "..." });
@@ -395,7 +348,7 @@ const toolbox = await getNearToolbox({ phrase: "..." });
 
 ### Gas Helper Functions
 
-The toolbox provides utility functions for gas calculations:
+The NEAR toolbox package exports utility functions for gas calculations:
 
 ```typescript
 // @noErrorValidation
@@ -411,31 +364,22 @@ const tgas = gasToTGas("30000000000000");
 1. **Always validate addresses** before sending transactions:
 
    ```typescript
-   import { validateNearAddress } from "@tcswap/toolboxes/near";
+   import { getValidateNearAddress } from "@tcswap/toolboxes/near";
+
+   const validateNearAddress = await getValidateNearAddress();
 
    if (!validateNearAddress(recipient)) {
      throw new Error("Invalid NEAR address");
    }
    ```
 
-2. **Check storage deposits** for NEP-141 tokens:
-
-   ```typescript
-   const token = await toolbox.nep141("token.near");
-   const storage = await token.getStorageBalance(recipient);
-
-   if (!storage || BigInt(storage.total) === 0n) {
-     await token.storageDeposit({ accountId: recipient });
-   }
-   ```
-
-3. **Use appropriate gas amounts** for contract calls:
+2. **Use appropriate gas amounts** for contract calls:
 
    ```typescript
    const gas = tgasToGas("100");
    ```
 
-4. **Handle implicit accounts** carefully:
+3. **Handle implicit accounts** carefully:
 
    ```typescript
    const implicitAccount =

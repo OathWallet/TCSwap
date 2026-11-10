@@ -1,7 +1,6 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Getting started with TCSwap
-description: Get started building your app with USwap.
+description: Get started building your app with TCSwap.
 hero:
   tagline:
     TCSwap is a powerful suite of tools for building blockchain applications. It provides a modular framework for integrating with multiple blockchains, wallet providers, and DeFi protocols.
@@ -14,6 +13,8 @@ hero:
     #     variant: secondary
     #     icon: puzzle
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Card, CardGrid } from "@astrojs/starlight/components";
 import { Tabs, TabItem } from "@astrojs/starlight/components";
@@ -85,10 +86,26 @@ The fastest way to integrate TCSwap into your application.
    Choose your package manager:
 
    <Tabs syncKey="package-manager">
-     <TabItem label="bun">```bash bun add @tcswap/sdk ```</TabItem>
-     <TabItem label="pnpm">```bash pnpm add @tcswap/sdk ```</TabItem>
-     <TabItem label="npm">```bash npm install @tcswap/sdk ```</TabItem>
-     <TabItem label="yarn">```bash yarn add @tcswap/sdk ```</TabItem>
+     <TabItem label="bun">
+       ```bash
+       bun add @tcswap/sdk
+       ```
+     </TabItem>
+     <TabItem label="pnpm">
+       ```bash
+       pnpm add @tcswap/sdk
+       ```
+     </TabItem>
+     <TabItem label="npm">
+       ```bash
+       npm install @tcswap/sdk
+       ```
+     </TabItem>
+     <TabItem label="yarn">
+       ```bash
+       yarn add @tcswap/sdk
+       ```
+     </TabItem>
    </Tabs>
 
 2. **Initialize TCSwap**
@@ -118,7 +135,7 @@ The fastest way to integrate TCSwap into your application.
      config: { apiKeys: { uSwap: "your-uswap-api-key" } },
    });
 
-   const wallet = await uSwap.connectKeystore(
+   await uSwap.connectKeystore(
      [Chain.Ethereum],
      "your mnemonic phrase here"
    );
@@ -139,10 +156,26 @@ For developers who need more control and custom configurations.
    Start with the core package:
 
    <Tabs syncKey="package-manager">
-     <TabItem label="bun">```bash bun add @tcswap/core ```</TabItem>
-     <TabItem label="pnpm">```bash pnpm add @tcswap/core ```</TabItem>
-     <TabItem label="npm">```bash npm install @tcswap/core ```</TabItem>
-     <TabItem label="yarn">```bash yarn add @tcswap/core ```</TabItem>
+     <TabItem label="bun">
+       ```bash
+       bun add @tcswap/core
+       ```
+     </TabItem>
+     <TabItem label="pnpm">
+       ```bash
+       pnpm add @tcswap/core
+       ```
+     </TabItem>
+     <TabItem label="npm">
+       ```bash
+       npm install @tcswap/core
+       ```
+     </TabItem>
+     <TabItem label="yarn">
+       ```bash
+       yarn add @tcswap/core
+       ```
+     </TabItem>
    </Tabs>
 
 2. **Install Required Components**
@@ -231,7 +264,7 @@ For developers who need more control and custom configurations.
 
 
    await uSwap.connectKeystore([Chain.Ethereum], 'your mnemonic phrase here');
-   const wallet = uSwap.getWallet(Chain.Ethereum);
+   const wallet = uSwap.getWalletByChain(Chain.Ethereum);
    ```
 </Steps>
 
@@ -248,11 +281,13 @@ No matter which implementation you choose, you can use these common patterns:
   <Card title="Check Balances" icon="seti:database">
     ```typescript
 
-    import { USwap, Chain } from '@tcswap/sdk';
+    import { createUSwap, Chain } from '@tcswap/sdk';
 
-    const uSwap = USwap({
+    const uSwap = createUSwap({
       config: { apiKeys: { uSwap: 'your-uswap-api-key' } },
     });
+
+    await uSwap.connectKeystore([Chain.Bitcoin], 'your mnemonic phrase here');
 
     const balance = await uSwap.getBalance(Chain.Bitcoin, true);
 
@@ -269,16 +304,15 @@ No matter which implementation you choose, you can use these common patterns:
 
 
     const uSwap = USwap({
-      config: { apiKeys: { uSwap: 'your-uswap-api-key' }, wallets: { ...keystoreWallet } },
+      config: { apiKeys: { uSwap: 'your-uswap-api-key' } },
+      wallets: { ...keystoreWallet },
     });
 
     await uSwap.connectKeystore([Chain.Ethereum], 'your mnemonic phrase here');
 
 
     const assetValue = AssetValue.from({
-      chain: Chain.Ethereum,
-      symbol: 'ETH',
-      decimal: 18,
+      asset: 'ETH.ETH',
       value: '0.1',
     });
 
@@ -295,31 +329,34 @@ No matter which implementation you choose, you can use these common patterns:
   <Card title="Perform Swaps" icon="seti:swap">
     ```typescript
 
-    import { AssetValue, Chain, USwapApi, USwap, keystoreWallet } from '@tcswap/sdk';
+    import { Chain, ProviderName, USwapApi, USwap, ThorchainPlugin, keystoreWallet } from '@tcswap/sdk';
 
 
     const uSwap = USwap({
-      config: { apiKeys: { uSwap: 'your-uswap-api-key' }, wallets: { ...keystoreWallet } },
+      config: { apiKeys: { uSwap: 'your-uswap-api-key' } },
+      plugins: { ...ThorchainPlugin },
+      wallets: { ...keystoreWallet },
     });
 
 
-    await uSwap.connectKeystore([Chain.Ethereum], 'your mnemonic phrase here');
+    await uSwap.connectKeystore([Chain.Ethereum, Chain.Bitcoin], 'your mnemonic phrase here');
 
 
-    const quoteResponse = await USwapApi.getSwapQ({
-      fromAsset: AssetValue.from({
-        chain: Chain.Ethereum,
-        symbol: 'ETH',
-        value: '0.1'
-      }),
-      toAsset: AssetValue.from({
-        chain: Chain.Bitcoin,
-        symbol: 'BTC'
-      }),
+    const quoteResponse = await USwapApi.getSwapQuote({
+      sellAsset: 'ETH.ETH',
+      sellAmount: '0.1',
+      buyAsset: 'BTC.BTC',
+      sourceAddress: uSwap.getAddress(Chain.Ethereum),
+      destinationAddress: uSwap.getAddress(Chain.Bitcoin),
+      slippage: 3,
+      // Only THORChain routes: this client registers just the THORChain plugin
+      providers: [ProviderName.THORCHAIN],
     });
 
+    const [route] = quoteResponse.routes;
+    if (!route) throw new Error('No THORChain route available');
 
-    const swapTx = await uSwap.swap({ route: quoteResponse.routes[0] });
+    const swapTx = await uSwap.swap({ route });
     ```
 
   </Card>
@@ -335,18 +372,18 @@ No matter which implementation you choose, you can use these common patterns:
 <CardGrid>
   <Card title="API Reference" icon="open-book">
     Explore detailed documentation of all TCSwap components and APIs.
-    <LinkButton href="/references/">View References</LinkButton>
+    <LinkButton href="/guides/api-reference">View API Reference</LinkButton>
   </Card>
   <Card title="Guides" icon="document">
-    Learn how to implement specific use cases with USwap.
-    <LinkButton href="/guides/">Browse Guides</LinkButton>
+    Learn how to implement specific use cases with TCSwap.
+    <LinkButton href="/guides/actions/swap">Browse Guides</LinkButton>
   </Card>
   <Card title="Toolboxes" icon="puzzle">
     Discover blockchain-specific toolboxes for extended functionality.
-    <LinkButton href="/references/toolboxes/">Explore Toolboxes</LinkButton>
+    <LinkButton href="/start/toolbox-usage">Explore Toolboxes</LinkButton>
   </Card>
   <Card title="Wallets" icon="seti:key">
-    Integrate with different wallet providers using USwap.
-    <LinkButton href="/references/wallets/">View Wallets</LinkButton>
+    Integrate with different wallet providers using TCSwap.
+    <LinkButton href="/guides/actions/connect-wallet">View Wallets</LinkButton>
   </Card>
 </CardGrid>

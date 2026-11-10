@@ -14,7 +14,7 @@ export const coinbaseWallet = createWallet({
 
       const filteredChains = filterSupportedChains({ chains, supportedChains, walletType });
 
-      const coinbaseConfig = USwapConfig.get("integrations").coinbase || { appName: "Swapkit Playground" };
+      const coinbaseConfig = USwapConfig.get("integrations").coinbase || { appName: "TCSwap Playground" };
 
       const coinbaseSdk = createCoinbaseWalletSDK({
         ...coinbaseConfig,

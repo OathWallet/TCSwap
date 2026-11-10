@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: BNB Smart Chain Integration
 description: Complete guide to integrating BNB Smart Chain with TCSwap SDK for DeFi operations and cross-chain swaps
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem, Code } from "@astrojs/starlight/components";
 
@@ -40,28 +41,26 @@ import { createUSwap, Chain } from '@tcswap/sdk';
 
 const uSwap = createUSwap();
 
-const bscWallet = await uSwap.getWallet(Chain.BinanceSmartChain);
+await uSwap.connectKeystore([Chain.BinanceSmartChain], "your twelve word mnemonic phrase here");
 
-````
+const bscWallet = uSwap.getWalletByChain(Chain.BinanceSmartChain);
+```
 </TabItem>
 <TabItem label="Standalone Toolbox">
 ```typescript
 // @noErrorValidation
-import { getBSCToolbox } from '@tcswap/toolboxes/evm';
+import { BSCToolbox } from '@tcswap/toolboxes/evm';
 
-
-const bscToolbox = await getBSCToolbox({
+const bscToolbox = await BSCToolbox({
   phrase: "your twelve word mnemonic phrase here",
-
-  derivationPath: [44, 60, 0, 0, 0]
 });
 
-
-const bscToolbox = await getBSCToolbox({
+// or bring your own ethers signer and provider
+const customBscToolbox = await BSCToolbox({
   signer: customBSCSigner,
   provider: customBSCProvider
 });
-````
+```
 
 </TabItem>
 </Tabs>
@@ -81,9 +80,9 @@ await uSwap.connectKeystore(
   "your mnemonic phrase"
 );
 
-await uSwap.connectBrowserWallet(Chain.BinanceSmartChain);
+await uSwap.connectEVMWallet([Chain.BinanceSmartChain]);
 
-await uSwap.connectWalletConnect([Chain.BinanceSmartChain]);
+await uSwap.connectWalletconnect([Chain.BinanceSmartChain]);
 
 await uSwap.connectLedger([Chain.BinanceSmartChain]);
 ```
@@ -118,9 +117,7 @@ BSC supports BEP-20 tokens (compatible with ERC-20):
 const usdtTransfer = await uSwap.transfer({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
   assetValue: AssetValue.from({
-    chain: Chain.BinanceSmartChain,
-    symbol: "USDT",
-    address: "0x55d398326f99059fF775485246999027B3197955",
+    asset: "BSC.USDT-0x55d398326f99059fF775485246999027B3197955",
     value: "100",
   }),
   feeOptionKey: FeeOption.Average,
@@ -129,14 +126,12 @@ const usdtTransfer = await uSwap.transfer({
 const cakeTransfer = await uSwap.transfer({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
   assetValue: AssetValue.from({
-    chain: Chain.BinanceSmartChain,
-    symbol: "CAKE",
-    address: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82",
+    asset: "BSC.CAKE-0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82",
     value: "10",
   }),
 });
 
-const toolbox = await getBSCToolbox({ phrase: "..." });
+const toolbox = await BSCToolbox({ phrase: "..." });
 
 const batchTokenTransfers = async () => {
   const bscTokens = [
@@ -177,6 +172,7 @@ BSC contracts execute quickly with low gas costs:
 
 ```typescript
 // @noErrorValidation
+import { erc20ABI } from "@tcswap/helpers/contracts";
 
 const cakeBalance = await toolbox.call({
   contractAddress: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82",
@@ -191,11 +187,11 @@ const cakeTransferTx = await toolbox.call({
   funcName: "transfer",
   funcParams: [
     "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-    "1000000000000000000",
+    1000000000000000000n,
   ],
   txOverrides: {
-    gasLimit: "65000",
-    gasPrice: "5000000000",
+    gasLimit: 65000n,
+    gasPrice: 5000000000n,
   },
 });
 
@@ -213,8 +209,8 @@ const pancakeswapTrade = await toolbox.call({
     Date.now() + 600000,
   ],
   txOverrides: {
-    value: "100000000000000000",
-    gasLimit: "250000",
+    value: 100000000000000000n,
+    gasLimit: 250000n,
   },
 });
 ```
@@ -226,24 +222,26 @@ BSC uses BNB for gas with low, predictable costs:
 ```typescript
 // @noErrorValidation
 
-const gasInfo = await toolbox.getGasPrices();
+const gasInfo = await toolbox.estimateGasPrices();
 console.log({
-  slow: gasInfo.average,
-  standard: gasInfo.fast,
-  fast: gasInfo.fastest,
+  average: gasInfo.average,
+  fast: gasInfo.fast,
+  fastest: gasInfo.fastest,
 });
 
-const txParams = await toolbox.buildTransaction({
+const txParams = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.BinanceSmartChain, value: "0.1" }),
-  gasLimit: "21000",
-  gasPrice: "5000000000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.BinanceSmartChain, value: "0.1" }),
+  gasLimit: 21000n,
+  gasPrice: 5000000000n,
 });
 
-const legacyTx = await toolbox.buildTransaction({
+const legacyTx = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.BinanceSmartChain, value: "0.1" }),
-  gasPrice: "10000000000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.BinanceSmartChain, value: "0.1" }),
+  gasPrice: 10000000000n,
 });
 ```
 
@@ -253,13 +251,14 @@ const legacyTx = await toolbox.buildTransaction({
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const bridgeQuote = await uSwap.getQuote({
+const bridgeQuote = await USwapApi.getSwapQuote({
   sellAsset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   sellAmount: "1000",
   buyAsset: "BSC.USDC-0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-  senderAddress: uSwap.getAddress(Chain.Ethereum),
-  recipientAddress: uSwap.getAddress(Chain.BinanceSmartChain),
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+  destinationAddress: uSwap.getAddress(Chain.BinanceSmartChain),
 });
 
 const bridgeTx = await uSwap.swap({
@@ -267,12 +266,12 @@ const bridgeTx = await uSwap.swap({
   feeOptionKey: FeeOption.Fast,
 });
 
-const ethToBnbBridge = await uSwap.getQuote({
+const ethToBnbBridge = await USwapApi.getSwapQuote({
   sellAsset: "ETH.ETH",
   sellAmount: "0.5",
   buyAsset: "BSC.BNB",
-  senderAddress: uSwap.getAddress(Chain.Ethereum),
-  recipientAddress: uSwap.getAddress(Chain.BinanceSmartChain),
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+  destinationAddress: uSwap.getAddress(Chain.BinanceSmartChain),
 });
 ```
 
@@ -280,13 +279,14 @@ const ethToBnbBridge = await uSwap.getQuote({
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const cakeToBtcQuote = await uSwap.getQuote({
+const cakeToBtcQuote = await USwapApi.getSwapQuote({
   sellAsset: "BSC.CAKE-0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82",
   sellAmount: "100",
   buyAsset: "BTC.BTC",
-  senderAddress: uSwap.getAddress(Chain.BinanceSmartChain),
-  recipientAddress: uSwap.getAddress(Chain.Bitcoin),
+  sourceAddress: uSwap.getAddress(Chain.BinanceSmartChain),
+  destinationAddress: uSwap.getAddress(Chain.Bitcoin),
 });
 
 const crossChainSwap = await uSwap.swap({
@@ -294,12 +294,12 @@ const crossChainSwap = await uSwap.swap({
   feeOptionKey: FeeOption.Fast,
 });
 
-const bnbToRuneQuote = await uSwap.getQuote({
+const bnbToRuneQuote = await USwapApi.getSwapQuote({
   sellAsset: "BSC.BNB",
   sellAmount: "1",
   buyAsset: "THOR.RUNE",
-  senderAddress: uSwap.getAddress(Chain.BinanceSmartChain),
-  recipientAddress: uSwap.getAddress(Chain.THORChain),
+  sourceAddress: uSwap.getAddress(Chain.BinanceSmartChain),
+  destinationAddress: uSwap.getAddress(Chain.THORChain),
 });
 ```
 
@@ -309,13 +309,14 @@ Access PancakeSwap and other BSC DEXs:
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const pancakeQuote = await uSwap.getQuote({
+const pancakeQuote = await USwapApi.getSwapQuote({
   sellAsset: "BSC.BNB",
   sellAmount: "1",
   buyAsset: "BSC.USDT-0x55d398326f99059fF775485246999027B3197955",
-  senderAddress: uSwap.getAddress(Chain.BinanceSmartChain),
-  recipientAddress: uSwap.getAddress(Chain.BinanceSmartChain),
+  sourceAddress: uSwap.getAddress(Chain.BinanceSmartChain),
+  destinationAddress: uSwap.getAddress(Chain.BinanceSmartChain),
   providers: ["PANCAKESWAP"],
 });
 
@@ -324,12 +325,12 @@ const pancakeSwap = await uSwap.swap({
   feeOptionKey: FeeOption.Fast,
 });
 
-const complexSwapQuote = await uSwap.getQuote({
+const complexSwapQuote = await USwapApi.getSwapQuote({
   sellAsset: "BSC.BUSD-0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56",
   sellAmount: "500",
   buyAsset: "BSC.CAKE-0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82",
-  senderAddress: uSwap.getAddress(Chain.BinanceSmartChain),
-  recipientAddress: uSwap.getAddress(Chain.BinanceSmartChain),
+  sourceAddress: uSwap.getAddress(Chain.BinanceSmartChain),
+  destinationAddress: uSwap.getAddress(Chain.BinanceSmartChain),
   providers: ["PANCAKESWAP"],
 });
 ```
@@ -356,9 +357,14 @@ const getBSCPortfolio = async () => {
   const balances = {};
   const address = uSwap.getAddress(Chain.BinanceSmartChain);
 
+  // Returns the native balance plus every token the address holds as AssetValue[]
+  const assetValues = await toolbox.getBalance(address);
+
   for (const [symbol, tokenAddress] of Object.entries(bscTokens)) {
-    const balance = await toolbox.getBalance(address, tokenAddress);
-    balances[symbol] = balance.toString();
+    const balance = assetValues.find(
+      (asset) => asset.address?.toLowerCase() === tokenAddress.toLowerCase()
+    );
+    balances[symbol] = balance?.toSignificant(6) ?? "0";
   }
 
   return balances;
@@ -376,8 +382,8 @@ const venusSupply = await toolbox.call({
   funcName: "mint",
   funcParams: [],
   txOverrides: {
-    value: "1000000000000000000",
-    gasLimit: "200000",
+    value: 1000000000000000000n,
+    gasLimit: 200000n,
   },
 });
 
@@ -421,8 +427,8 @@ const addLiquidity = await toolbox.call({
     Date.now() + 600000,
   ],
   txOverrides: {
-    value: "500000000000000000",
-    gasLimit: "300000",
+    value: 500000000000000000n,
+    gasLimit: 300000n,
   },
 });
 ```
@@ -437,17 +443,17 @@ import { USwapConfig } from '@tcswap/sdk';
 
 
 USwapConfig.setRpcUrl(Chain.BinanceSmartChain, [
-  "https:
-  "https:
-  "https:
-  "https:
+  "https://bsc-dataseed.binance.org",
+  "https://bsc-rpc.gateway.pokt.network",
+  "https://bsc-dataseed2.binance.org",
+  "https://bsc-rpc.publicnode.com",
 ]);
 
 
 import { JsonRpcProvider } from 'ethers';
 
-const bscProvider = new JsonRpcProvider("https:
-const toolbox = await getBSCToolbox({
+const bscProvider = new JsonRpcProvider("https://bsc-dataseed.binance.org");
+const toolbox = await BSCToolbox({
   phrase: "your mnemonic",
   provider: bscProvider
 });
@@ -458,8 +464,7 @@ const toolbox = await getBSCToolbox({
 ```typescript
 // @noErrorValidation
 
-USwapConfig.setRpcUrl(Chain.BinanceSmartChain, "https:
-USwapConfig.setEnv('isMainnet', false);
+USwapConfig.setRpcUrl(Chain.BinanceSmartChain, ["https://bsc-dataseed.binance.org"]);
 
 
 const testnetTokens = {
@@ -482,18 +487,18 @@ try {
   });
 } catch (error) {
   if (error instanceof USwapError) {
-    switch (error.code) {
-      case "toolbox_evm_insufficient_funds":
-        console.error("Insufficient BNB for gas");
+    switch (error.message.split(":")[0]) {
+      case "toolbox_evm_error_estimating_gas_limit":
+        console.error("Gas estimation failed - check BNB balance for gas");
         break;
-      case "network_bsc_congestion":
-        console.error("BSC network congestion, increase gas price");
+      case "toolbox_evm_gas_estimation_error":
+        console.error("Could not fetch gas prices, try again");
         break;
-      case "toolbox_evm_transaction_failed":
+      case "toolbox_evm_error_sending_transaction":
         console.error("Transaction failed:", error.cause);
         break;
-      case "bridge_bsc_validator_issue":
-        console.error("BSC bridge validator issue");
+      case "core_wallet_connection_not_found":
+        console.error("Wallet is not connected for this chain");
         break;
       default:
         console.error("Unknown error:", error);
@@ -519,9 +524,9 @@ const batchTransactions = async () => {
 
   for (const tokenAddress of tokens) {
     const approve = toolbox.approve({
-      contractAddress: tokenAddress,
+      assetAddress: tokenAddress,
       spenderAddress: "0x10ED43C718714eb63d5aA57B78B54704E256024E",
-      amount: "1000000000000000000000",
+      amount: 1000000000000000000000n,
     });
     batchOps.push(approve);
   }
@@ -536,29 +541,19 @@ const batchTransactions = async () => {
 ```typescript
 // @noErrorValidation
 
-const optimizedTx = await toolbox.buildTransaction({
+const optimizedTx = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.BinanceSmartChain, value: "0.1" }),
-  gasLimit: "21000",
-  gasPrice: "5000000000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.BinanceSmartChain, value: "0.1" }),
+  gasLimit: 21000n,
+  gasPrice: 5000000000n,
 });
 
-const multicallData = [
-  {
-    target: "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56",
-    callData: "0x70a08231...",
-  },
-  {
-    target: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82",
-    callData: "0x70a08231...",
-  },
-  {
-    target: "0x55d398326f99059fF775485246999027B3197955",
-    callData: "0x70a08231...",
-  },
-];
-
-const results = await toolbox.multicall(multicallData);
+const fee = await toolbox.estimateTransactionFee({
+  ...optimizedTx,
+  chain: Chain.BinanceSmartChain,
+  feeOption: FeeOption.Average,
+});
 ```
 
 ## Best Practices
@@ -573,7 +568,7 @@ const results = await toolbox.multicall(multicallData);
      funcParams: [
        /* many parameters */
      ],
-     gasLimit: "500000",
+     txOverrides: { gasLimit: 500000n },
    });
    ```
 
@@ -590,9 +585,9 @@ const results = await toolbox.multicall(multicallData);
 3. **Monitor Gas Price Fluctuations**:
 
    ```typescript
-   const gasPrice = await toolbox.getGasPrices();
+   const gasPrice = await toolbox.estimateGasPrices();
 
-   if (gasPrice.fast > 20000000000) {
+   if ((gasPrice.fast.gasPrice ?? gasPrice.fast.maxFeePerGas ?? 0n) > 20000000000n) {
      console.warn("High gas prices detected on BSC");
    }
    ```
@@ -600,12 +595,14 @@ const results = await toolbox.multicall(multicallData);
 4. **Use PancakeSwap for Best Liquidity**:
 
    ```typescript
-   const pancakeQuote = await uSwap.getQuote({
+   import { USwapApi } from "@tcswap/sdk";
+
+   const pancakeQuote = await USwapApi.getSwapQuote({
      sellAsset: "BSC.BNB",
      sellAmount: "10",
      buyAsset: "BSC.USDT-0x55d398326f99059fF775485246999027B3197955",
-     senderAddress: uSwap.getAddress(Chain.BinanceSmartChain),
-     recipientAddress: uSwap.getAddress(Chain.BinanceSmartChain),
+     sourceAddress: uSwap.getAddress(Chain.BinanceSmartChain),
+     destinationAddress: uSwap.getAddress(Chain.BinanceSmartChain),
      providers: ["PANCAKESWAP"],
    });
    ```
@@ -626,10 +623,11 @@ const results = await toolbox.multicall(multicallData);
 2. **Gas price too low**:
 
    ```typescript
-   const minGasTx = await toolbox.buildTransaction({
+   const minGasTx = await toolbox.createTransaction({
      recipient: "0x...",
-     amount: AssetValue.from({ chain: Chain.BinanceSmartChain, value: "0.1" }),
-     gasPrice: "5000000000",
+     sender: "0xYourAddress",
+     assetValue: AssetValue.from({ chain: Chain.BinanceSmartChain, value: "0.1" }),
+     gasPrice: 5000000000n,
    });
    ```
 
@@ -638,9 +636,9 @@ const results = await toolbox.multicall(multicallData);
    ```typescript
 
    const rpcEndpoints = [
-     "https:
-     "https:
-     "https:
+     "https://bsc-dataseed.binance.org",
+     "https://bsc-rpc.gateway.pokt.network",
+     "https://bsc-dataseed2.binance.org",
    ];
 
    USwapConfig.setRpcUrl(Chain.BinanceSmartChain, rpcEndpoints);
@@ -650,22 +648,18 @@ const results = await toolbox.multicall(multicallData);
 
 ### Core Methods (Same as Ethereum)
 
-- `getBalance()` - Get BNB or BEP-20 token balance
+- `getBalance()` - Get BNB and token balances (`AssetValue[]`)
 - `transfer()` - Send BNB or tokens
-- `buildTransaction()` - Construct transaction parameters
+- `createTransaction()` - Construct transaction parameters
+- `sendTransaction()` - Sign and broadcast a transaction object
 - `call()` - Execute smart contract functions
 - `estimateCall()` - Estimate gas for contract calls
 
 ### Gas Management
 
-- `getGasPrices()` - Get current gas prices in gwei
-- `estimateGas()` - Estimate gas usage
-- `waitForTransaction()` - Wait for ~3 second confirmation
-
-### BSC Specific
-
-- `getBlockNumber()` - Get latest block (updates every ~3 seconds)
-- `multicall()` - Batch multiple contract reads efficiently
+- `estimateGasPrices()` - Get current gas prices per fee option
+- `estimateGasLimit()` - Estimate gas limit for a transfer
+- `estimateTransactionFee()` - Estimate the total fee for a transaction
 
 ## Next Steps
 

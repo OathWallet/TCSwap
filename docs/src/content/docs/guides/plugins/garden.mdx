@@ -1,0 +1,90 @@
+---
+title: Garden Plugin
+description: Execute Garden bridge routes with TCSwap from EVM chains, Solana and transfer-based chains
+---
+
+The Garden plugin executes quote routes whose provider is `ProviderName.GARDEN`. It takes a route from the TCSwap API and sends it from the wallet connected on the sell asset's chain.
+
+## Import
+
+```ts
+import { GardenPlugin } from "@tcswap/plugins/garden";
+```
+
+`GardenPlugin` is part of `defaultPlugins` in `@tcswap/sdk`, so `createUSwap()` already includes it. It is not re-exported from `@tcswap/sdk`, so import it from `@tcswap/plugins/garden` when you assemble a client with `USwap`:
+
+```ts
+import { USwap } from "@tcswap/core";
+import { GardenPlugin } from "@tcswap/plugins/garden";
+import { keystoreWallet } from "@tcswap/wallets/keystore";
+
+const uSwap = USwap({
+  plugins: { ...GardenPlugin },
+  wallets: { ...keystoreWallet },
+});
+```
+
+The plugin is registered under the name `garden` and declares `supportedUSwapProviders: [ProviderName.GARDEN]`.
+
+## How a route is executed
+
+`swap({ route })` reads `sellAsset`, `sellAmount`, `targetAddress` and `tx` from the route, then branches on the sell asset's chain:
+
+| Sell chain | What the plugin does |
+| --- | --- |
+| Any EVM chain | Sends `route.tx` (`{ from, to, data, value }`) with the wallet's `sendTransaction`. |
+| Solana | Decodes `route.tx` as a base64 `VersionedTransaction`, signs it with `signTransaction`, then calls `broadcastTransaction`. |
+| Any other chain (Bitcoin, for example) | Transfers `sellAmount` of `sellAsset` to `route.targetAddress` with the wallet's `transfer`. |
+
+On the transfer path it throws `USwapError("plugin_garden_missing_data")` if the route has no `targetAddress`. The return value is the transaction hash.
+
+## Swap example
+
+```ts
+import { AssetValue, Chain, createUSwap, ProviderName } from "@tcswap/sdk";
+import { USwapApi } from "@tcswap/helpers/api";
+
+const uSwap = createUSwap();
+await uSwap.connectKeystore([Chain.Ethereum, Chain.Bitcoin], "your secret phrase");
+
+const { routes } = await USwapApi.getSwapQuote({
+  buyAsset: "BTC.BTC",
+  destinationAddress: uSwap.getAddress(Chain.Bitcoin),
+  providers: [ProviderName.GARDEN],
+  sellAmount: "0.1",
+  sellAsset: "ETH.ETH",
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+});
+
+const [route] = routes;
+if (!route) throw new Error("No Garden route");
+
+const txHash = await uSwap.swap({ route });
+```
+
+`uSwap.swap` resolves the plugin from `route.providers[0]`, which is `GARDEN` for these routes.
+
+## Token approvals (EVM)
+
+For ERC-20 sell assets the spender must be approved before swapping. Use the client's approval helpers with the spender address returned for the route:
+
+```ts
+const assetValue = await AssetValue.from({
+  asset: route.sellAsset,
+  asyncTokenLookup: true,
+  value: route.sellAmount,
+});
+const spenderAddress = route.meta?.approvalAddress;
+
+if (spenderAddress && !(await uSwap.isAssetValueApproved(assetValue, spenderAddress))) {
+  await uSwap.approveAssetValue(assetValue, spenderAddress);
+}
+```
+
+The plugin itself also carries `approveAssetValue({ assetValue, spenderAddress })` and `isAssetValueApproved({ assetValue, spenderAddress })`. Both report native gas assets, synthetic assets and non-EVM chains as already approved.
+
+## Notes
+
+- A wallet must be connected for the sell asset's chain. Radix is not supported as a sell chain.
+- EVM and Solana routes need `route.tx`. Transfer-based routes need `route.targetAddress`.
+- `GardenPlugin` is not handled by `loadPlugin` from `@tcswap/plugins`; import it directly.

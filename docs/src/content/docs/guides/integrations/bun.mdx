@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Bun + React
 description: A guide to integrate TCSwap with Bun and React applications.
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
 
@@ -14,11 +15,25 @@ Install TCSwap:
 
 <Tabs syncKey="package-manager">
   <TabItem label="bun" icon="bun">
-    ```bash bun add @tcswap/sdk ```
+    ```bash
+    bun add @tcswap/sdk
+    ```
   </TabItem>
-  <TabItem label="pnpm">```bash pnpm add @tcswap/sdk ```</TabItem>
-  <TabItem label="npm">```bash npm install @tcswap/sdk ```</TabItem>
-  <TabItem label="yarn">```bash yarn add @tcswap/sdk ```</TabItem>
+  <TabItem label="pnpm">
+    ```bash
+    pnpm add @tcswap/sdk
+    ```
+  </TabItem>
+  <TabItem label="npm">
+    ```bash
+    npm install @tcswap/sdk
+    ```
+  </TabItem>
+  <TabItem label="yarn">
+    ```bash
+    yarn add @tcswap/sdk
+    ```
+  </TabItem>
 </Tabs>
 
 ## Project Setup
@@ -71,12 +86,12 @@ serve({
   },
 });
 
-console.log(`Server running at http:
+console.log(`Server running at http://localhost:${PORT}`);
 ```
 
 ## React Application Setup
 
-Create your main React application with USwap:
+Create your main React application with TCSwap:
 
 ```tsx
 import { useState } from "react";
@@ -93,7 +108,7 @@ export function App() {
       await uSwap.connectEVMWallet([Chain.Ethereum], WalletOption.METAMASK);
 
       setIsConnected(true);
-      const ethAddress = await uSwap.getAddress(Chain.Ethereum);
+      const ethAddress = uSwap.getAddress(Chain.Ethereum);
       setAddress(ethAddress);
     } catch (error) {
       console.error("Failed to connect wallet:", error);
@@ -101,7 +116,7 @@ export function App() {
   };
 
   const disconnectWallet = () => {
-    uSwap.disconnectWallet(Chain.Ethereum);
+    uSwap.disconnectChain(Chain.Ethereum);
     setIsConnected(false);
     setAddress("");
   };
@@ -205,7 +220,7 @@ Access them in your code:
 import { USwapConfig } from "@tcswap/sdk";
 
 if (process.env.BUN_PUBLIC_USWAP_API_KEY) {
-  USwapConfig.setApiKey("uswap", process.env.BUN_PUBLIC_USWAP_API_KEY);
+  USwapConfig.setApiKey("uSwap", process.env.BUN_PUBLIC_USWAP_API_KEY);
 }
 ```
 
@@ -236,4 +251,4 @@ Bun supports TypeScript out of the box. Create a `tsconfig.json`:
 
 ## Example Repository
 
-For a complete working example, check out the [Bun + React playground](https:
+For a complete working example, check out the [Bun + React playground](https://github.com/thorchain/TCSwap/tree/main/playgrounds/bun-react).

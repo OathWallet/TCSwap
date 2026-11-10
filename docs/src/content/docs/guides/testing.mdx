@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Testing
 description: Comprehensive guide to testing TCSwap applications with unit tests, integration tests, mocking strategies, and chain-specific examples.
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
@@ -72,7 +73,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  USwapConfig.reset();
+  USwapConfig.reinitialize();
 });
 ```
 
@@ -91,7 +92,7 @@ import { Chain } from '@tcswap/types';
 
 describe('USwap Configuration', () => {
   beforeEach(() => {
-    USwapConfig.reset();
+    USwapConfig.reinitialize();
   });
 
   test('should set and get API keys', () => {
@@ -103,13 +104,13 @@ describe('USwap Configuration', () => {
     expect(config.uSwap).toBe(apiKey);
   });
 
-  test('should set explorer URLs', () => {
-    const customUrl = 'https:
+  test('should set RPC URLs', () => {
+    const customUrls = ['https://ethereum-rpc.publicnode.com'];
 
-    USwapConfig.setExplorerUrl(Chain.Ethereum, customUrl);
+    USwapConfig.setRpcUrl(Chain.Ethereum, customUrls);
 
-    const explorerUrls = USwapConfig.get('explorerUrls');
-    expect(explorerUrls[Chain.Ethereum]).toBe(customUrl);
+    const rpcUrls = USwapConfig.get('rpcUrls');
+    expect(rpcUrls[Chain.Ethereum]).toEqual(customUrls);
   });
 
   test('should preserve existing config when adding new keys', () => {
@@ -135,23 +136,23 @@ import { AssetValue } from "@tcswap/helpers";
 
 describe("AssetValue", () => {
   test("should create AssetValue from string", () => {
-    const assetValue = AssetValue.fromString("ETH.ETH", "1.5");
+    const assetValue = AssetValue.from({ asset: "ETH.ETH", value: "1.5" });
 
-    expect(assetValue.toString()).toBe("1.5 ETH.ETH");
+    expect(assetValue.toString()).toBe("ETH.ETH");
     expect(assetValue.getValue("string")).toBe("1.5");
-    expect(assetValue.asset.toString()).toBe("ETH.ETH");
+    expect(assetValue.chain).toBe("ETH");
   });
 
   test("should handle decimal precision", () => {
-    const assetValue = AssetValue.fromString("BTC.BTC", "0.12345678");
+    const assetValue = AssetValue.from({ asset: "BTC.BTC", value: "0.12345678" });
 
     expect(assetValue.getValue("string", 8)).toBe("0.12345678");
     expect(assetValue.getValue("string", 4)).toBe("0.1235");
   });
 
   test("should perform arithmetic operations", () => {
-    const asset1 = AssetValue.fromString("ETH.ETH", "1.5");
-    const asset2 = AssetValue.fromString("ETH.ETH", "0.5");
+    const asset1 = AssetValue.from({ asset: "ETH.ETH", value: "1.5" });
+    const asset2 = AssetValue.from({ asset: "ETH.ETH", value: "0.5" });
 
     const sum = asset1.add(asset2);
     expect(sum.getValue("string")).toBe("2");
@@ -161,21 +162,20 @@ describe("AssetValue", () => {
   });
 
   test("should handle different asset types", () => {
-    const eth = AssetValue.fromString("ETH.ETH", "1");
-    const usdc = AssetValue.fromString(
-      "ETH.USDC-0xA0b86A33E6416c3C302BA3532A0a42B2A1fF0516",
-      "1000"
-    );
+    const eth = AssetValue.from({ asset: "ETH.ETH", value: "1" });
+    const usdc = AssetValue.from({
+      asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      value: "1000",
+    });
 
-    expect(eth.asset.chain).toBe("ETH");
-    expect(usdc.asset.chain).toBe("ETH");
-    expect(usdc.asset.symbol).toBe("USDC");
+    expect(eth.chain).toBe("ETH");
+    expect(eth.isGasAsset).toBe(true);
+    expect(usdc.chain).toBe("ETH");
+    expect(usdc.ticker).toBe("USDC");
   });
 
-  test("should validate asset values", () => {
-    expect(() => AssetValue.fromString("ETH.ETH", "-1")).toThrow();
-    expect(() => AssetValue.fromString("", "1")).toThrow();
-    expect(() => AssetValue.fromString("ETH.ETH", "invalid")).toThrow();
+  test("should reject invalid asset URLs", () => {
+    expect(() => AssetValue.fromUrl("")).toThrow("helpers_invalid_asset_url");
   });
 });
 ```
@@ -235,16 +235,19 @@ Test helper functions:
 // @noErrorValidation
 
 import { describe, expect, test } from "bun:test";
-import { validateAddress, isValidAssetIdentifier } from "@tcswap/helpers";
+import { validateIdentifier } from "@tcswap/helpers";
+import { getAddressValidator } from "@tcswap/toolboxes";
 import { Chain } from "@tcswap/types";
 
-describe("Validators", () => {
+describe("Validators", async () => {
+  const validateAddress = await getAddressValidator();
+
   test("should validate Ethereum addresses", () => {
     const validAddress = "0x742d35Cc6486C0D8C50fb5F04F08E8b23e20Ab8A";
     const invalidAddress = "0xinvalid";
 
-    expect(validateAddress(validAddress, Chain.Ethereum)).toBe(true);
-    expect(validateAddress(invalidAddress, Chain.Ethereum)).toBe(false);
+    expect(validateAddress({ address: validAddress, chain: Chain.Ethereum })).toBe(true);
+    expect(validateAddress({ address: invalidAddress, chain: Chain.Ethereum })).toBe(false);
   });
 
   test("should validate Bitcoin addresses", () => {
@@ -252,21 +255,19 @@ describe("Validators", () => {
     const validLegacy = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa";
     const invalid = "invalid-bitcoin-address";
 
-    expect(validateAddress(validBech32, Chain.Bitcoin)).toBe(true);
-    expect(validateAddress(validLegacy, Chain.Bitcoin)).toBe(true);
-    expect(validateAddress(invalid, Chain.Bitcoin)).toBe(false);
+    expect(validateAddress({ address: validBech32, chain: Chain.Bitcoin })).toBe(true);
+    expect(validateAddress({ address: validLegacy, chain: Chain.Bitcoin })).toBe(true);
+    expect(validateAddress({ address: invalid, chain: Chain.Bitcoin })).toBe(false);
   });
 
   test("should validate asset identifiers", () => {
-    expect(isValidAssetIdentifier("ETH.ETH")).toBe(true);
-    expect(isValidAssetIdentifier("BTC.BTC")).toBe(true);
+    expect(validateIdentifier("ETH.ETH")).toBe(true);
+    expect(validateIdentifier("BTC.BTC")).toBe(true);
     expect(
-      isValidAssetIdentifier(
-        "ETH.USDC-0xA0b86A33E6416c3C302BA3532A0a42B2A1fF0516"
-      )
+      validateIdentifier("ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
     ).toBe(true);
-    expect(isValidAssetIdentifier("invalid")).toBe(false);
-    expect(isValidAssetIdentifier("")).toBe(false);
+    // Throws USwapError("helpers_invalid_identifier") for unknown chains
+    expect(() => validateIdentifier("invalid")).toThrow("helpers_invalid_identifier");
   });
 
   test("should validate chain-specific addresses", () => {
@@ -278,7 +279,7 @@ describe("Validators", () => {
     };
 
     Object.entries(addresses).forEach(([chain, address]) => {
-      expect(validateAddress(address, chain as Chain)).toBe(true);
+      expect(validateAddress({ address, chain: chain as Chain })).toBe(true);
     });
   });
 });
@@ -298,13 +299,13 @@ import { USwap } from "@tcswap/core";
 import { keystoreWallet } from "@tcswap/wallets/keystore";
 import { Chain } from "@tcswap/types";
 
+const createClient = () => USwap({ wallets: { ...keystoreWallet } });
+
 describe("Wallet Integration", () => {
-  let uSwap: ReturnType<typeof USwap>;
+  let uSwap: ReturnType<typeof createClient>;
 
   beforeEach(() => {
-    uSwap = USwap({
-      wallets: { keystore: keystoreWallet },
-    });
+    uSwap = createClient();
   });
 
   test(
@@ -320,10 +321,10 @@ describe("Wallet Integration", () => {
 
       const wallets = uSwap.getAllWallets();
 
-      expect(wallets.ethereum).toBeDefined();
-      expect(wallets.ethereum.address).toBeDefined();
-      expect(wallets.bitcoin).toBeDefined();
-      expect(wallets.bitcoin.address).toBeDefined();
+      expect(wallets[Chain.Ethereum]).toBeDefined();
+      expect(wallets[Chain.Ethereum].address).toBeDefined();
+      expect(wallets[Chain.Bitcoin]).toBeDefined();
+      expect(wallets[Chain.Bitcoin].address).toBeDefined();
     },
     { timeout: 30000 }
   );
@@ -371,11 +372,14 @@ describe("API Integration", () => {
   test(
     "should get asset price",
     async () => {
-      const price = await USwapApi.getPrice("ETH");
+      const [price] = await USwapApi.getPrice({
+        tokens: [{ identifier: "ETH.ETH" }],
+        metadata: false,
+      });
 
       expect(price).toBeDefined();
-      expect(typeof price).toBe("number");
-      expect(price).toBeGreaterThan(0);
+      expect(typeof price.price_usd).toBe("number");
+      expect(price.price_usd).toBeGreaterThan(0);
     },
     { timeout: 10000 }
   );
@@ -385,10 +389,10 @@ describe("API Integration", () => {
     async () => {
       const quoteParams = {
         sellAsset: "ETH.ETH",
-        buyAsset: "ETH.USDC-0xA0b86A33E6416c3C302BA3532A0a42B2A1fF0516",
+        buyAsset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         sellAmount: "1",
-        senderAddress: "0x742d35Cc6486C0D8C50fb5F04F08E8b23e20Ab8A",
-        recipientAddress: "0x742d35Cc6486C0D8C50fb5F04F08E8b23e20Ab8A",
+        sourceAddress: "0x742d35Cc6486C0D8C50fb5F04F08E8b23e20Ab8A",
+        destinationAddress: "0x742d35Cc6486C0D8C50fb5F04F08E8b23e20Ab8A",
       };
 
       const quote = await USwapApi.getSwapQuote(quoteParams);
@@ -401,21 +405,15 @@ describe("API Integration", () => {
     { timeout: 15000 }
   );
 
-  test("should handle invalid asset gracefully", async () => {
-    await expect(USwapApi.getPrice("INVALID.ASSET")).rejects.toThrow();
+  test("should reject invalid quote params", async () => {
+    await expect(
+      USwapApi.getSwapQuote({
+        sellAsset: "INVALID.ASSET",
+        buyAsset: "BTC.BTC",
+        sellAmount: "1",
+      })
+    ).rejects.toThrow();
   });
-
-  test(
-    "should get gas rates",
-    async () => {
-      const gasRate = await USwapApi.getGasRate("ETH");
-
-      expect(gasRate).toBeDefined();
-      expect(typeof gasRate).toBe("string");
-      expect(Number(gasRate)).toBeGreaterThan(0);
-    },
-    { timeout: 10000 }
-  );
 });
 ```
 
@@ -427,34 +425,21 @@ Test end-to-end swap functionality:
 // @noErrorValidation
 
 import { describe, expect, test, beforeEach } from "bun:test";
-import { USwap } from "@tcswap/core";
-import { ThorchainPlugin } from "@tcswap/plugins/thorchain";
-import { keystoreWallet } from "@tcswap/wallets/keystore";
-import { Chain, AssetValue } from "@tcswap/helpers";
+import { USwapApi } from "@tcswap/helpers/api";
+import { ProviderName } from "@tcswap/helpers";
 
 describe("Swap Integration", () => {
-  let uSwap: ReturnType<typeof USwap>;
-
-  beforeEach(() => {
-    uSwap = USwap({
-      plugins: { thorchain: ThorchainPlugin },
-      wallets: { keystore: keystoreWallet },
-    });
-  });
-
   test(
     "should get swap quote for THORChain swap",
     async () => {
-      const sellAsset = AssetValue.fromString("ETH.ETH", "0.1");
-      const buyAsset = "BTC.BTC";
-
-      const quoteParams = {
-        sellAsset,
-        buyAsset,
-        recipientAddress: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-      };
-
-      const quote = await uSwap.getQuote(quoteParams);
+      const quote = await USwapApi.getSwapQuote({
+        sellAsset: "ETH.ETH",
+        buyAsset: "BTC.BTC",
+        sellAmount: "0.1",
+        sourceAddress: "0x742d35Cc6486C0D8C50fb5F04F08E8b23e20Ab8A",
+        destinationAddress: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+        providers: [ProviderName.THORCHAIN],
+      });
 
       expect(quote).toBeDefined();
       expect(quote.routes).toBeDefined();
@@ -463,33 +448,34 @@ describe("Swap Integration", () => {
       const route = quote.routes[0];
       expect(route.sellAsset).toBe("ETH.ETH");
       expect(route.buyAsset).toBe("BTC.BTC");
-      expect(route.sellAmount).toBe("100000000");
+      expect(route.expectedBuyAmount).toBeDefined();
     },
     { timeout: 30000 }
   );
 
   test("should validate swap parameters", async () => {
-    const invalidParams = {
-      sellAsset: AssetValue.fromString("INVALID.ASSET", "1"),
-      buyAsset: "BTC.BTC",
-      recipientAddress: "invalid-address",
-    };
-
-    await expect(uSwap.getQuote(invalidParams as any)).rejects.toThrow();
+    await expect(
+      USwapApi.getSwapQuote({
+        sellAsset: "INVALID.ASSET",
+        buyAsset: "BTC.BTC",
+        sellAmount: "1",
+        destinationAddress: "invalid-address",
+      })
+    ).rejects.toThrow();
   });
 
   test(
     "should handle insufficient liquidity",
     async () => {
-      const largeAmount = AssetValue.fromString("ETH.ETH", "10000");
-
-      const quoteParams = {
-        sellAsset: largeAmount,
+      // The API either throws (api_v2_server_error) or returns no routes
+      const result = await USwapApi.getSwapQuote({
+        sellAsset: "ETH.ETH",
         buyAsset: "BTC.BTC",
-        recipientAddress: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-      };
+        sellAmount: "10000000",
+        destinationAddress: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+      }).catch(() => null);
 
-      await expect(uSwap.getQuote(quoteParams)).rejects.toThrow();
+      expect(result === null || result.routes.length === 0).toBe(true);
     },
     { timeout: 30000 }
   );
@@ -508,7 +494,9 @@ Create mocks for external API calls:
 import { mock } from "bun:test";
 
 export const mockuSwapApi = {
-  getPrice: mock(() => Promise.resolve(2500)),
+  getPrice: mock(() =>
+    Promise.resolve([{ identifier: "ETH.ETH", price_usd: 2500 }])
+  ),
 
   getSwapQuote: mock(() =>
     Promise.resolve({
@@ -516,25 +504,16 @@ export const mockuSwapApi = {
         {
           sellAsset: "ETH.ETH",
           buyAsset: "BTC.BTC",
-          sellAmount: "1000000000000000000",
-          buyAmount: "4000000",
-          providers: ["thorchain"],
-          transactions: [
-            {
-              type: "swap",
-              to: "0x123...",
-              data: "0xabc...",
-            },
-          ],
+          sellAmount: "1",
+          expectedBuyAmount: "0.04",
+          providers: ["THORCHAIN"],
+          fees: [],
+          targetAddress: "0x123...",
+          memo: "=:BTC.BTC:bc1q...",
         },
       ],
-      fees: {
-        total: "50000000000000000",
-      },
     })
   ),
-
-  getGasRate: mock(() => Promise.resolve("20000000000")),
 };
 
 export const mockThorchainApi = {
@@ -583,10 +562,10 @@ export const mockEthereumProvider = {
   removeListener: mock(),
 };
 
-global.window = {
-  ...global.window,
+globalThis.window = {
+  ...globalThis.window,
   ethereum: mockEthereumProvider,
-};
+} as any;
 ```
 
 ### Mocking Toolboxes
@@ -661,7 +640,6 @@ describe("Bitcoin Integration", () => {
     const toolbox = await getUtxoToolbox(Chain.Bitcoin, { phrase });
 
     expect(toolbox).toBeDefined();
-    expect(toolbox.chain).toBe(Chain.Bitcoin);
 
     const address = await toolbox.getAddress();
     expect(address).toBeDefined();
@@ -695,7 +673,7 @@ Test Ethereum-specific functionality:
 
 import { describe, expect, test } from "bun:test";
 import { getEvmToolbox } from "@tcswap/toolboxes/evm";
-import { Chain } from "@tcswap/types";
+import { AssetValue, Chain, FeeOption } from "@tcswap/helpers";
 
 describe("Ethereum Integration", () => {
   test("should create Ethereum toolbox", async () => {
@@ -708,7 +686,6 @@ describe("Ethereum Integration", () => {
     const toolbox = await getEvmToolbox(Chain.Ethereum, { phrase });
 
     expect(toolbox).toBeDefined();
-    expect(toolbox.chain).toBe(Chain.Ethereum);
 
     const address = await toolbox.getAddress();
     expect(address).toBeDefined();
@@ -720,11 +697,9 @@ describe("Ethereum Integration", () => {
     async () => {
       const toolbox = await getEvmToolbox(Chain.Ethereum);
 
-      if (toolbox.provider) {
-        const gasPrice = await toolbox.provider.getGasPrice();
-        expect(gasPrice).toBeDefined();
-        expect(gasPrice.gt(0)).toBe(true);
-      }
+      const gasPrices = await toolbox.estimateGasPrices();
+      const { maxFeePerGas, gasPrice } = gasPrices[FeeOption.Average];
+      expect((maxFeePerGas ?? gasPrice ?? 0n) > 0n).toBe(true);
     },
     { timeout: 10000 }
   );
@@ -740,13 +715,19 @@ describe("Ethereum Integration", () => {
 
       const toolbox = await getEvmToolbox(Chain.Ethereum, { phrase });
 
-      const gasEstimate = await toolbox.estimateGas({
-        to: "0xA0b86a33E6416c3C302BA3532A0a42B2A1fF0516",
-        data: "0xa9059cbb000000000000000000000000742d35cc6486c0d8c50fb5f04f08e8b23e20ab8a0000000000000000000000000000000000000000000000000000000000989680",
+      const sender = await toolbox.getAddress();
+      const assetValue = AssetValue.from({
+        asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        value: "10",
       });
 
-      expect(gasEstimate).toBeDefined();
-      expect(gasEstimate.gt(0)).toBe(true);
+      const gasEstimate = await toolbox.estimateGasLimit({
+        assetValue,
+        recipient: "0x742d35Cc6486C0D8C50fb5F04F08E8b23e20Ab8A",
+        sender,
+      });
+
+      expect(gasEstimate > 0n).toBe(true);
     },
     { timeout: 15000 }
   );
@@ -775,7 +756,6 @@ describe("THORChain Integration", () => {
     const toolbox = await getCosmosToolbox(Chain.THORChain, { phrase });
 
     expect(toolbox).toBeDefined();
-    expect(toolbox.chain).toBe(Chain.THORChain);
 
     const address = await toolbox.getAddress();
     expect(address).toBeDefined();
@@ -835,16 +815,17 @@ Create reusable test utilities:
 ```typescript
 // @noErrorValidation
 
+import { expect } from "bun:test";
 import { AssetValue, USwapError } from "@tcswap/helpers";
 import { Chain } from "@tcswap/types";
 
 export const testAssets = {
-  ETH: AssetValue.fromString("ETH.ETH", "1"),
-  BTC: AssetValue.fromString("BTC.BTC", "0.1"),
-  USDC: AssetValue.fromString(
-    "ETH.USDC-0xA0b86A33E6416c3C302BA3532A0a42B2A1fF0516",
-    "1000"
-  ),
+  ETH: AssetValue.from({ asset: "ETH.ETH", value: "1" }),
+  BTC: AssetValue.from({ asset: "BTC.BTC", value: "0.1" }),
+  USDC: AssetValue.from({
+    asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    value: "1000",
+  }),
 };
 
 export const testAddresses = {
@@ -862,16 +843,12 @@ export function createMockRoute(sellAsset: string, buyAsset: string) {
   return {
     sellAsset,
     buyAsset,
-    sellAmount: "1000000000000000000",
-    buyAmount: "4000000",
-    providers: ["thorchain"],
-    transactions: [
-      {
-        type: "swap" as const,
-        to: "0x123...",
-        data: "0xabc...",
-      },
-    ],
+    sellAmount: "1",
+    expectedBuyAmount: "0.04",
+    providers: ["THORCHAIN"],
+    fees: [],
+    targetAddress: "0x123...",
+    memo: "=:BTC.BTC:bc1q...",
   };
 }
 
@@ -903,17 +880,19 @@ describe("Performance Tests", () => {
   test(
     "should handle concurrent price requests",
     async () => {
-      const assets = ["ETH", "BTC", "AVAX", "ATOM", "DOGE"];
+      const assets = ["ETH.ETH", "BTC.BTC", "AVAX.AVAX", "GAIA.ATOM", "DOGE.DOGE"];
       const startTime = performance.now();
 
       const prices = await Promise.all(
-        assets.map((asset) => USwapApi.getPrice(asset))
+        assets.map((identifier) =>
+          USwapApi.getPrice({ tokens: [{ identifier }], metadata: false })
+        )
       );
 
       const duration = performance.now() - startTime;
 
       expect(prices).toHaveLength(5);
-      expect(prices.every((p) => typeof p === "number")).toBe(true);
+      expect(prices.every(([p]) => typeof p?.price_usd === "number")).toBe(true);
       expect(duration).toBeLessThan(5000);
     },
     { timeout: 10000 }
@@ -924,7 +903,9 @@ describe("Performance Tests", () => {
     async () => {
       const requests = Array(50)
         .fill(0)
-        .map(() => USwapApi.getPrice("ETH"));
+        .map(() =>
+          USwapApi.getPrice({ tokens: [{ identifier: "ETH.ETH" }], metadata: false })
+        );
 
       const results = await Promise.allSettled(requests);
       const successful = results.filter((r) => r.status === "fulfilled").length;

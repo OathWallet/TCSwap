@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Signing Transactions
 description: How to sign transactions and messages with TCSwap
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 TCSwap provides ways to sign transactions and messages across different blockchains. This guide shows how to use these signing capabilities with both granular and all-in-one package approaches.
 
@@ -79,20 +80,17 @@ async function signMessageExample() {
 
 ## Signing with Different Chains
 
-Different blockchains have different message signing formats:
+Different blockchains have different message signing formats. Message signing depends on the connected wallet: for example, the keystore wallet only supports `signMessage` on EVM chains, while Ledger also supports THORChain. If the connected wallet can't sign messages for a chain, `signMessage` throws a `USwapError` with the `core_wallet_sign_message_not_supported` key.
 
 ```ts twoslash
-import { Chain, USwap, evmWallet, keystoreWallet } from "@tcswap/sdk";
+import { Chain, USwap, evmWallet, ledgerWallet } from "@tcswap/sdk";
 
 const uSwap = USwap({
-  wallets: { ...evmWallet, ...keystoreWallet },
+  wallets: { ...evmWallet, ...ledgerWallet },
 });
 
 async function setupWallets() {
-  await uSwap.connectKeystore(
-    [Chain.Bitcoin, Chain.Cosmos, Chain.THORChain],
-    "your secret phrase here"
-  );
+  await uSwap.connectLedger([Chain.THORChain]);
 
   await uSwap.connectEVMWallet([Chain.Ethereum]);
 }
@@ -156,37 +154,28 @@ In most cases, TCSwap handles transaction signing internally when using methods 
 For more control over the signing process, you can use toolboxes directly:
 
 ```ts twoslash
-
-import { Chain, getEvmToolbox, ethers } from "@tcswap/sdk";
-
+import { Chain, getEvmToolbox } from "@tcswap/sdk";
+import { parseEther } from "ethers";
 
 async function signEthereumTransaction() {
-
-  const provider = new ethers.JsonRpcProvider("https:
-  const signer = new ethers.Wallet("your-eth-private-key", provider);
-
-
   const ethToolbox = await getEvmToolbox(Chain.Ethereum, {
-    provider,
-    signer,
+    phrase: "your twelve word mnemonic phrase here",
   });
 
+  const from = await ethToolbox.getAddress();
 
   const transaction = {
     to: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-    value: ethers.parseEther("0.01"),
+    value: parseEther("0.01"),
     data: "0x",
-    from: signer.address,
+    from,
   };
 
   try {
+    // Signs and broadcasts the transaction, returning the tx hash
+    const txHash = await ethToolbox.sendTransaction(transaction);
 
-    const signedTx = await ethToolbox.sendTransaction(transaction);
-
-
-
-
-    return signedTx;
+    return txHash;
   } catch (error) {
     throw error;
   }
@@ -198,38 +187,37 @@ async function signEthereumTransaction() {
 For UTXO chains like Bitcoin, the process involves creating inputs and outputs:
 
 ```ts twoslash
-import { AssetValue, Chain, FeeOption, getUtxoToolbox } from "@tcswap/sdk";
+import { AssetValue, Chain, getUtxoToolbox } from "@tcswap/sdk";
 
 async function signBitcoinTransaction() {
   const btcToolbox = await getUtxoToolbox(Chain.Bitcoin);
 
-  const keys = await btcToolbox.createKeysForPath({
+  const keys = btcToolbox.createKeysForPath({
     phrase: "your twelve word mnemonic phrase here",
     derivationPath: "m/84'/0'/0'/0/0",
   });
 
   const fromAddress = btcToolbox.getAddressFromKeys(keys);
 
-  const amount = AssetValue.from({
-    chain: Chain.Bitcoin,
-    symbol: "BTC",
-    value: "0.001",
-  });
+  const amount = AssetValue.from({ chain: Chain.Bitcoin, value: "0.001" });
 
   const recipient = "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq";
 
   try {
-    const { psbt: builder, utxos } = await btcToolbox.buildTx({
+    const { psbt } = await btcToolbox.createTransaction({
       sender: fromAddress,
       recipient,
       assetValue: amount,
-      feeRate: 1.2,
+      feeRate: 2,
       memo: "Test transaction",
     });
 
-    utxos.forEach((utxo, index) => builder.sign(index, keys));
+    psbt.signAllInputs(keys);
+    psbt.finalizeAllInputs();
 
-    const txHash = await btcToolbox.broadcastTx(builder.toHex());
+    const txHash = await btcToolbox.broadcastTx(psbt.extractTransaction().toHex());
+
+    return txHash;
   } catch (error) {
     throw error;
   }
@@ -246,6 +234,7 @@ import {
   Chain,
   FeeOption,
   USwap,
+  WalletOption,
   ledgerWallet,
 } from "@tcswap/sdk";
 
@@ -257,12 +246,12 @@ async function signWithLedger() {
   try {
     await uSwap.connectLedger([Chain.Ethereum]);
 
-    const ledgerWallet = uSwap.getWallet(Chain.Ethereum);
+    const wallet = uSwap.getWallet(WalletOption.LEDGER, Chain.Ethereum);
 
-    const txHash = await ledgerWallet.transfer({
+    const txHash = await wallet.transfer({
       assetValue: AssetValue.from({ chain: Chain.Ethereum, value: "0.01" }),
       feeOptionKey: FeeOption.Fast,
-      from: ledgerWallet.address,
+      sender: wallet.address,
       memo: "Ledger transfer",
       recipient: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
     });
@@ -279,14 +268,17 @@ async function signWithLedger() {
 For complete control over the signing process, you can use toolbox-specific methods:
 
 ```ts twoslash
-import { Chain, getCosmosToolbox } from "@tcswap/sdk";
+import { Chain, NetworkDerivationPath, getCosmosToolbox } from "@tcswap/sdk";
 
 async function cosmosWallet() {
-  const cosmosToolbox = await getCosmosToolbox(Chain.THORChain);
-
   const phrase = "your twelve word mnemonic phrase here";
-  const signer = await cosmosToolbox.getSigner(phrase);
-  const address = await cosmosToolbox.getAddressFromMnemonic(phrase);
+  const cosmosToolbox = await getCosmosToolbox(Chain.THORChain, { phrase });
+
+  const signer = await cosmosToolbox.getSignerFromPhrase({
+    phrase,
+    derivationPath: NetworkDerivationPath[Chain.THORChain],
+  });
+  const address = await cosmosToolbox.getAddress();
 
   return { signer, address };
 }

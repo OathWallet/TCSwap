@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Radix Integration
 description: Complete guide to integrating Radix DLT with TCSwap SDK for XRD operations and DeFi applications
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem, Code } from "@astrojs/starlight/components";
 
@@ -10,13 +11,11 @@ This guide covers Radix DLT integration with TCSwap, including wallet connection
 
 ## Overview
 
-Radix DLT is a layer-1 protocol designed specifically for DeFi with atomic composability and linear scalability. TCSwap provides comprehensive Radix support through:
+Radix DLT is a layer-1 protocol designed specifically for DeFi with atomic composability and linear scalability. TCSwap provides Radix support through:
 
-- **Radix Toolbox**: Native Radix operations with XRD token
-- **Resource-Oriented Architecture**: Work with Radix's unique resource model
-- **Blueprint Integration**: Interact with Radix blueprints (smart contracts)
-- **Multi-Wallet Support**: Compatible with Radix Wallet and hardware wallets
-- **Cross-Chain Swaps**: Bridge assets between Radix and other chains
+- **Radix Toolbox**: Balance queries and address validation backed by the Radix Gateway API
+- **Radix Wallet**: Connection through the Radix dApp Toolkit, with transaction manifests signed in the Radix Wallet
+- **Radix Plugin**: Swaps routed through Caviar (`CAVIAR_V1`)
 
 ## Getting Started
 
@@ -40,381 +39,141 @@ import { createUSwap, Chain } from '@tcswap/sdk';
 
 const uSwap = createUSwap();
 
-const radixWallet = await uSwap.getWallet(Chain.Radix);
+await uSwap.connectRadixWallet([Chain.Radix]);
 
-````
+const radixWallet = uSwap.getWalletByChain(Chain.Radix);
+```
 </TabItem>
 <TabItem label="Standalone Toolbox">
 ```typescript
 // @noErrorValidation
-import { getRadixToolbox } from '@tcswap/toolboxes/radix';
+import { RadixToolbox } from '@tcswap/toolboxes/radix';
 
+// Uses USwapConfig.get("integrations").radix when dappConfig is omitted
+const radixToolbox = await RadixToolbox();
 
-const radixToolbox = await getRadixToolbox({
-  phrase: "your twelve word mnemonic phrase here",
-
-  derivationPath: [44, 1022, 0, 0, 0]
+const customRadixToolbox = await RadixToolbox({
+  dappConfig: {
+    applicationName: "My dApp",
+    applicationVersion: "1.0.0",
+    dAppDefinitionAddress: "account_rdx...",
+    network: { dashboardBase: "https://dashboard.radixdlt.com", networkId: 1, networkName: "mainnet" },
+  },
 });
-
-
-const radixToolbox = await getRadixToolbox({
-  privateKey: customRadixPrivateKey,
-  networkId: 1
-});
-````
-
+```
 </TabItem>
 </Tabs>
+
+The standalone toolbox is read-only: it exposes `getBalance`, `validateAddress`, `networkApi` (a Gateway API client) and `getAddress`. Signing happens in the Radix Wallet.
 
 ## Radix Toolbox
 
 ### Wallet Connection
 
-Connect to Radix using various wallet types:
+Radix is connected through the Radix Wallet (via the Radix dApp Toolkit). The dApp definition is read from the `radix` integration config:
 
 ```typescript
 // @noErrorValidation
-import { Chain, FeeOption } from "@tcswap/sdk";
+import { Chain, USwapConfig } from "@tcswap/sdk";
 
-await uSwap.connectKeystore([Chain.Radix], "your mnemonic phrase");
+USwapConfig.setIntegrationConfig("radix", {
+  applicationName: "My dApp",
+  applicationVersion: "1.0.0",
+  dAppDefinitionAddress: "account_rdx...",
+  network: { dashboardBase: "https://dashboard.radixdlt.com", networkId: 1, networkName: "mainnet" },
+});
 
-await uSwap.connectRadix([Chain.Radix]);
-
-await uSwap.connectLedger([Chain.Radix]);
+await uSwap.connectRadixWallet([Chain.Radix]);
 ```
 
-### Address Generation
+### Address Validation
 
-Radix uses bech32 addresses with different prefixes:
+Radix account addresses use the `account_rdx1` prefix:
 
 ```typescript
 // @noErrorValidation
+import { radixValidateAddress } from "@tcswap/toolboxes/radix";
 
 const radixAddress = uSwap.getAddress(Chain.Radix);
-
 console.log("Radix address:", radixAddress);
 
-import { validateRadixAddress } from "@tcswap/toolboxes/radix";
-
-const isValidAddress = validateRadixAddress(radixAddress);
-console.log("Valid XRD address:", isValidAddress);
-
-const publicKey = await radixToolbox.getPublicKey();
-console.log("Radix public key:", publicKey);
+const isValidAddress = radixValidateAddress(radixAddress);
+console.log("Valid Radix address:", isValidAddress);
 ```
 
-### XRD Transfers
+### Balances
 
-```typescript
-// @noErrorValidation
-import { AssetValue } from "@tcswap/sdk";
-
-const txHash = await uSwap.transfer({
-  recipient:
-    "account_rdx12yy34s8nfpdtjgzcmnqkjlcl5h5lh7x5hljgykgs5p9w4hxm0h6fkr",
-  assetValue: AssetValue.from({
-    chain: Chain.Radix,
-    value: "100",
-  }),
-  feeOptionKey: FeeOption.Fast,
-  memo: "XRD transfer",
-});
-
-console.log(`Radix transaction ID: ${txHash}`);
-
-const messageTransfer = await radixToolbox.transfer({
-  recipient:
-    "account_rdx12yy34s8nfpdtjgzcmnqkjlcl5h5lh7x5hljgykgs5p9w4hxm0h6fkr",
-  assetValue: AssetValue.from({ chain: Chain.Radix, value: "50" }),
-  message: "Payment for DeFi services",
-  encryptMessage: true,
-});
-
-const multiTransfer = async () => {
-  const recipients = [
-    {
-      address:
-        "account_rdx12yy34s8nfpdtjgzcmnqkjlcl5h5lh7x5hljgykgs5p9w4hxm0h6fkr",
-      amount: "10",
-    },
-    {
-      address:
-        "account_rdx129k0cc9vgzpyfd9s9qgm3w0lf9jzf4jm7xdrtmqv7mj9shcjqmzl67",
-      amount: "15",
-    },
-    {
-      address:
-        "account_rdx12x6zxvhfnhxnq5s7yk4mnq6a5x4vl7w2p2qzxvyup0v7q5wm8npqcd",
-      amount: "20",
-    },
-  ];
-
-  const multiTx = await radixToolbox.multiTransfer({
-    recipients: recipients.map((r) => ({
-      address: r.address,
-      assetValue: AssetValue.from({ chain: Chain.Radix, value: r.amount }),
-      message: `Payment of ${r.amount} XRD`,
-    })),
-  });
-
-  console.log("Multi-transfer completed:", multiTx);
-};
-```
-
-### Resource Operations
-
-Radix uses a resource-oriented model where everything is a resource:
+`getBalance` returns an `AssetValue` for XRD and every fungible resource held by the account:
 
 ```typescript
 // @noErrorValidation
 
-const accountResources = await radixToolbox.getAccountResources(
-  uSwap.getAddress(Chain.Radix)
+const balances = await radixToolbox.getBalance(
+  "account_rdx12yy34s8nfpdtjgzcmnqkjlcl5h5lh7x5hljgykgs5p9w4hxm0h6fkr"
 );
 
-console.log("Account resources:");
-accountResources.forEach((resource) => {
-  console.log(`${resource.resourceAddress}: ${resource.amount} ${resource.symbol}`);
+balances.forEach((asset) => {
+  console.log(`${asset.toString()}: ${asset.getValue("string")}`);
 });
 
-
-const tokenTransfer = await radixToolbox.transferResource({
-  recipient: "account_rdx12yy34s8nfpdtjgzcmnqkjlcl5h5lh7x5hljgykgs5p9w4hxm0h6fkr",
-  resourceAddress: "resource_rdx1tknxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  amount: "1000",
-  message: "Custom token transfer"
-});
-
-
-const createToken = async () => {
-  const tokenTx = await radixToolbox.createFungibleResource({
-    initialSupply: "1000000",
-    name: "MyDefiToken",
-    symbol: "MDT",
-    description: "A DeFi token on Radix",
-    iconUrl: "https:
-    divisibility: 18,
-    mintable: true,
-    burnable: true
-  });
-
-  console.log("Token created:", tokenTx);
-  return tokenTx;
-};
+const walletBalances = await uSwap.getBalance(Chain.Radix, true);
 ```
 
-### Blueprint (Smart Contract) Interactions
+### Transactions and Manifests
 
-Radix uses blueprints instead of traditional smart contracts:
+Transfers are not supported through `uSwap.transfer()` for Radix (the wallet's `transfer` throws `wallet_radix_method_not_supported`). Instead, build a Radix transaction manifest and send it to the Radix Wallet with `signAndBroadcast`:
 
 ```typescript
 // @noErrorValidation
 
-const blueprintCall = await radixToolbox.callBlueprint({
-  blueprintAddress:
-    "package_rdx1pkgxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  functionName: "instantiate_pool",
-  arguments: [
-    "resource_rdx1tknxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    "resource_rdx1tknxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    "100000",
-    "50000",
-  ],
-  resourceDeposits: [
-    {
-      resourceAddress:
-        "resource_rdx1tknxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      amount: "100000",
-    },
-  ],
+const radixWallet = uSwap.getWalletByChain(Chain.Radix);
+const sender = radixWallet.address;
+const recipient = "account_rdx12yy34s8nfpdtjgzcmnqkjlcl5h5lh7x5hljgykgs5p9w4hxm0h6fkr";
+const xrd = "resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd";
+
+const manifest = `
+CALL_METHOD Address("${sender}") "withdraw" Address("${xrd}") Decimal("100");
+TAKE_ALL_FROM_WORKTOP Address("${xrd}") Bucket("xrd");
+CALL_METHOD Address("${recipient}") "try_deposit_or_abort" Bucket("xrd") Enum<0u8>();
+`;
+
+const txIntentHash = await radixWallet.signAndBroadcast({
+  manifest,
+  message: "XRD transfer",
 });
 
-console.log("Blueprint method called:", blueprintCall);
-
-const blueprintInfo = await radixToolbox.getBlueprintInfo(
-  "package_rdx1pkgxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-);
-
-console.log("Blueprint info:", {
-  name: blueprintInfo.name,
-  version: blueprintInfo.version,
-  functions: blueprintInfo.functions,
-  events: blueprintInfo.events,
-});
-
-const eventSubscription = await radixToolbox.subscribeToBlueprintEvents({
-  blueprintAddress:
-    "package_rdx1pkgxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  eventTypes: ["LiquidityAdded", "Swap"],
-  callback: (event) => {
-    console.log("Blueprint event:", event);
-  },
-});
-```
-
-### DeFi Operations
-
-Radix's native DeFi capabilities:
-
-```typescript
-// @noErrorValidation
-
-const addLiquidity = async () => {
-  const liquidityTx = await radixToolbox.addLiquidity({
-    poolAddress:
-      "component_rdx1cpxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    tokenAAddress:
-      "resource_rdx1tknxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    tokenBAddress:
-      "resource_rdx1t28xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    amountA: "1000",
-    amountB: "2000",
-    minAmountA: "950",
-    minAmountB: "1900",
-  });
-
-  console.log("Liquidity added:", liquidityTx);
-};
-
-const dexSwap = async () => {
-  const swapTx = await radixToolbox.swap({
-    poolAddress:
-      "component_rdx1cpxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    inputResourceAddress:
-      "resource_rdx1tknxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    outputResourceAddress:
-      "resource_rdx1t28xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    inputAmount: "100",
-    minOutputAmount: "190",
-    slippageTolerance: 0.05,
-  });
-
-  console.log("Swap completed:", swapTx);
-};
-
-const yieldFarm = async () => {
-  const farmTx = await radixToolbox.stakeLPTokens({
-    farmAddress:
-      "component_rdx1cpxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    lpTokenAddress:
-      "resource_rdx1tknxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    amount: "50",
-    lockupPeriod: 30,
-  });
-
-  console.log("LP tokens staked:", farmTx);
-};
-
-const claimRewards = async () => {
-  const claimTx = await radixToolbox.claimFarmingRewards({
-    farmAddress:
-      "component_rdx1cpxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    stakingAddress: uSwap.getAddress(Chain.Radix),
-  });
-
-  console.log("Rewards claimed:", claimTx);
-};
-```
-
-### NFT Operations
-
-```typescript
-// @noErrorValidation
-
-const createNFTCollection = async () => {
-  const collectionTx = await radixToolbox.createNonFungibleResource({
-    name: "Radix Heroes",
-    symbol: "RHERO",
-    description: "A collection of Radix heroes",
-    iconUrl: "https:
-    nftData: [
-      {
-        id: "1",
-        name: "Radix Warrior",
-        description: "A brave warrior of the Radix network",
-        imageUrl: "https:
-        attributes: {
-          strength: 95,
-          magic: 80,
-          rarity: "legendary"
-        }
-      }
-    ]
-  });
-
-  console.log("NFT collection created:", collectionTx);
-};
-
-
-const transferNFT = async () => {
-  const nftTransferTx = await radixToolbox.transferNFT({
-    recipient: "account_rdx12yy34s8nfpdtjgzcmnqkjlcl5h5lh7x5hljgykgs5p9w4hxm0h6fkr",
-    nftResourceAddress: "resource_rdx1nfxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    nftId: "1",
-    message: "NFT gift"
-  });
-
-  console.log("NFT transferred:", nftTransferTx);
-};
-
-
-const getOwnedNFTs = async () => {
-  const nfts = await radixToolbox.getNFTs(uSwap.getAddress(Chain.Radix));
-
-  console.log("Owned NFTs:");
-  nfts.forEach((nft) => {
-    console.log(`${nft.name} (${nft.id}): ${nft.resourceAddress}`);
-  });
-};
+console.log(`Radix transaction intent hash: ${txIntentHash}`);
 ```
 
 ## Cross-Chain Operations
 
-### Bridge to Other Networks
+### Swaps
+
+Radix swaps are routed through Caviar and executed by the Radix plugin, which signs the returned manifest with the connected Radix Wallet:
 
 ```typescript
 // @noErrorValidation
+import { FeeOption, USwapApi } from "@tcswap/sdk";
 
-const bridgeToEthereum = async () => {
-  const bridgeQuote = await uSwap.getQuote({
-    sellAsset: "XRD.XRD",
-    sellAmount: "1000",
-    buyAsset: "ETH.XRD",
-    senderAddress: uSwap.getAddress(Chain.Radix),
-    recipientAddress: uSwap.getAddress(Chain.Ethereum),
+const { routes } = await USwapApi.getSwapQuote({
+  sellAsset: "XRD.XRD",
+  sellAmount: "1000",
+  buyAsset: "XRD.HUG-resource_rdx1...",
+  sourceAddress: uSwap.getAddress(Chain.Radix),
+  destinationAddress: uSwap.getAddress(Chain.Radix),
+  providers: ["CAVIAR_V1"],
+});
+
+if (routes.length > 0) {
+  const swapTx = await uSwap.swap({
+    route: routes[0],
+    feeOptionKey: FeeOption.Fast,
   });
 
-  if (bridgeQuote.routes.length > 0) {
-    const bridgeTx = await uSwap.swap({
-      route: bridgeQuote.routes[0],
-      feeOptionKey: FeeOption.Fast,
-    });
-
-    console.log("Bridge transaction:", bridgeTx);
-  } else {
-    console.log("No bridge route available");
-  }
-};
-
-const arbitrageOpportunity = async () => {
-  const radixPrice = await radixToolbox.getTokenPrice(
-    "resource_rdx1tknxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    "resource_rdx1t28xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-  );
-
-  const externalPrice = await getExternalXRDPrice();
-
-  if (radixPrice < externalPrice * 0.98) {
-    console.log(
-      `Arbitrage opportunity: ${(
-        ((externalPrice - radixPrice) / radixPrice) *
-        100
-      ).toFixed(2)}%`
-    );
-
-    await executeArbitrageStrategy(radixPrice, externalPrice);
-  }
-};
+  console.log("Swap transaction:", swapTx);
+} else {
+  console.log("No route available");
+}
 ```
 
 ## Network Configuration
@@ -425,221 +184,90 @@ const arbitrageOpportunity = async () => {
 // @noErrorValidation
 import { USwapConfig } from '@tcswap/sdk';
 
-
 USwapConfig.setRpcUrl(Chain.Radix, [
-  "https:
-  "https:
-  "https:
+  "https://mainnet.radixdlt.com",
+  "https://radix-mainnet.rpc.grove.city/v1",
+  "https://radix-mainnet.rpc.grove.city/v1/326002fc/core",
 ]);
-
-
-const customRadixGateway = "https:
-USwapConfig.setRpcUrl(Chain.Radix, customRadixGateway);
-
-
-const radixToolbox = await getRadixToolbox({
-  phrase: "your mnemonic",
-  gatewayUrl: "https:
-  networkId: 1
-});
 ```
 
 ### Working with Stokenet (Testnet)
 
+The Radix network is selected by the `network` field of the `radix` integration config (or the `dappConfig` passed to `RadixToolbox`):
+
 ```typescript
 // @noErrorValidation
 
-USwapConfig.setRpcUrl(Chain.Radix, "https:
-USwapConfig.setEnv('isMainnet', false);
-
-const testnetToolbox = await getRadixToolbox({
-  phrase: "your mnemonic",
-  gatewayUrl: "https:
-  networkId: 2
+const testnetToolbox = await RadixToolbox({
+  dappConfig: {
+    applicationName: "My dApp",
+    applicationVersion: "1.0.0",
+    dAppDefinitionAddress: "account_tdx_2_...",
+    network: { dashboardBase: "https://stokenet-dashboard.radixdlt.com", networkId: 2, networkName: "stokenet" },
+  },
 });
-
-
-const faucetRequest = await testnetToolbox.requestFaucetTokens(
-  uSwap.getAddress(Chain.Radix)
-);
-
-console.log("Faucet tokens requested:", faucetRequest);
 ```
 
-## Performance Optimization
-
-### Transaction Batching
+## Error Handling
 
 ```typescript
 // @noErrorValidation
+import { USwapError } from "@tcswap/sdk";
 
-const batchOperations = async () => {
-  const manifest = radixToolbox
-    .createTransactionManifest()
-
-    .withdrawFromAccount(
-      uSwap.getAddress(Chain.Radix),
-      "resource_rdx1tknxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "100"
-    )
-
-    .callMethod(
-      "component_rdx1cpxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "swap",
-      [
-        'Bucket("bucket1")',
-        "resource_rdx1t28xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      ]
-    )
-
-    .callMethodWithAllResources(
-      uSwap.getAddress(Chain.Radix),
-      "deposit_batch"
-    )
-    .build();
-
-  const batchTx = await radixToolbox.submitTransaction({
-    manifest,
-    message: "Batch swap operation",
-  });
-
-  console.log("Batch transaction submitted:", batchTx);
-};
-
-const optimizeResources = async () => {
-  const resources = await radixToolbox.getAccountResources(
-    uSwap.getAddress(Chain.Radix)
-  );
-
-  const consolidationTxs = [];
-
-  for (const resource of resources) {
-    if (resource.amount < 1 && resource.amount > 0) {
-      const consolidateTx = await radixToolbox.transferResource({
-        recipient: uSwap.getAddress(Chain.Radix),
-        resourceAddress: resource.resourceAddress,
-        amount: resource.amount.toString(),
-        message: "Consolidation",
-      });
-
-      consolidationTxs.push(consolidateTx);
+try {
+  await radixWallet.signAndBroadcast({ manifest, message: "" });
+} catch (error) {
+  if (error instanceof USwapError) {
+    switch (error.message.split(":")[0]) {
+      case "wallet_radix_not_found":
+        console.error("Radix integration config missing");
+        break;
+      case "wallet_radix_transaction_failed":
+        console.error("Transaction was rejected or failed");
+        break;
+      case "wallet_radix_method_not_supported":
+        console.error("Method not supported by the Radix Wallet");
+        break;
+      default:
+        console.error("Unknown error:", error);
     }
   }
-
-  console.log("Resource consolidation completed:", consolidationTxs);
-};
+}
 ```
 
 ## Best Practices
 
-1. **Understand Resource Model**:
+1. **Validate addresses** before building manifests:
 
    ```typescript
-   const resourceBestPractices = {
-     validateResourceAddress: (address: string) => {
-       return address.startsWith("resource_rdx1");
-     },
+   import { radixValidateAddress } from "@tcswap/toolboxes/radix";
 
-     handleDeposits: async (resourceAddress: string, amount: string) => {
-       const balance = await radixToolbox.getResourceBalance(
-         uSwap.getAddress(Chain.Radix),
-         resourceAddress
-       );
-
-       if (parseFloat(balance) >= parseFloat(amount)) {
-         return true;
-       }
-
-       throw new Error("Insufficient resource balance");
-     },
-   };
+   if (!radixValidateAddress(recipient)) {
+     throw new Error("Invalid Radix address");
+   }
    ```
 
-2. **Use Atomic Transactions**:
-
-   ```typescript
-   const atomicSwap = async () => {
-     const manifest = radixToolbox
-       .createTransactionManifest()
-       .withdrawFromAccount(
-         uSwap.getAddress(Chain.Radix),
-         "resource_rdx1tknxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-         "100"
-       )
-       .callMethod(
-         "component_rdx1cpxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-         "swap",
-         [
-           'Bucket("bucket1")',
-           "resource_rdx1t28xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-         ]
-       )
-       .assertWorktopContains(
-         "resource_rdx1t28xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-         "95"
-       )
-       .callMethodWithAllResources(
-         uSwap.getAddress(Chain.Radix),
-         "deposit_batch"
-       )
-       .build();
-
-     return await radixToolbox.submitTransaction({ manifest });
-   };
-   ```
-
-3. **Monitor Blueprint Events**:
-
-   ```typescript
-   const monitorDeFiEvents = async () => {
-     await radixToolbox.subscribeToBlueprintEvents({
-       blueprintAddress:
-         "package_rdx1pkgxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-       eventTypes: ["Swap", "LiquidityAdded", "LiquidityRemoved"],
-       callback: (event) => {
-         console.log(`DeFi event: ${event.type}`, event.data);
-
-         if (event.type === "Swap" && event.data.priceImpact > 5) {
-           console.warn("High price impact swap detected");
-         }
-       },
-     });
-   };
-   ```
+2. **Use atomic manifests**: add `ASSERT_WORKTOP_CONTAINS` instructions so a multi-step manifest fails as a whole if an expected output is missing.
 
 ## API Reference Summary
 
-### Core Methods
+### Radix Toolbox (`RadixToolbox`)
 
-- `getBalance()` - Get XRD balance
-- `transfer()` - Send XRD or resources
-- `getAccountResources()` - Get all account resources
-- `transferResource()` - Transfer custom resources
+- `getBalance(address)` - Get XRD and fungible resource balances
+- `validateAddress(address)` - Validate a Radix account address
+- `networkApi` - Radix Gateway API client
+- `signAndBroadcast()` - Not supported on the standalone toolbox (throws `toolbox_radix_method_not_supported`)
 
-### Blueprint Methods
+### Radix Wallet (`uSwap.getWalletByChain(Chain.Radix)`)
 
-- `callBlueprint()` - Execute blueprint function
-- `getBlueprintInfo()` - Get blueprint metadata
-- `subscribeToBlueprintEvents()` - Monitor blueprint events
+- `address` / `getAddress()` - Connected account address
+- `getBalance()` - Balances of the connected account
+- `signAndBroadcast({ manifest, message })` - Sign a transaction manifest in the Radix Wallet and submit it
+- `radixDappToolkit` - Underlying Radix dApp Toolkit instance
 
-### DeFi Methods
+### Helpers
 
-- `addLiquidity()` - Add liquidity to pools
-- `swap()` - Execute token swaps
-- `stakeLPTokens()` - Stake LP tokens for rewards
-- `claimFarmingRewards()` - Claim staking rewards
-
-### Resource Methods
-
-- `createFungibleResource()` - Create new tokens
-- `createNonFungibleResource()` - Create NFT collections
-- `getResourceMetadata()` - Get resource information
-
-### Transaction Methods
-
-- `createTransactionManifest()` - Build transaction manifests
-- `submitTransaction()` - Submit transactions to network
-- `getTransaction()` - Get transaction details
+- `radixValidateAddress(address)` - Validate a Radix account address
 
 ## Next Steps
 

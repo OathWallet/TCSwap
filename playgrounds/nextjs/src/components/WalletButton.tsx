@@ -1,11 +1,11 @@
 "use client";
 
-import { showModal, useSwapKit, WalletConnectDialog } from "@tcswap/ui/react";
+import { showModal, useUSwap, WalletConnectDialog } from "@tcswap/ui/react";
 import { Button } from "~/components/ui/button";
 import { WalletDrawer } from "./WalletDrawer";
 
 export function WalletButton({ className }: { className?: string }) {
-  const { isWalletConnected } = useSwapKit();
+  const { isWalletConnected } = useUSwap();
 
   if (isWalletConnected) {
     return (

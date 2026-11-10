@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Creating a Custom Wallet
 description: A guide to create a custom wallet adapter
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 This guide explains how to create a custom wallet adapter for TCSwap using the `createWallet` function.
 
@@ -10,24 +11,24 @@ This guide explains how to create a custom wallet adapter for TCSwap using the `
 
 A TCSwap wallet adapter consists of:
 
-1. A wallet factory created with `createWallet`
-2. Configuration for supported chains and derivation paths
-3. Connection methods for interacting with the wallet
+1. A wallet factory created with `createWallet` (`name`, `walletType`, `supportedChains`, `connect`)
+2. A connect function that resolves each requested chain's address and toolbox
+3. Calls to `addChain` that register a chain wallet (`chain`, `address`, `walletType` plus toolbox methods such as `transfer` and `getBalance`) on the TCSwap client
 
 ## Basic Wallet Adapter Example
 
-Here's a simple example of creating a custom wallet adapter:
+Here's a simple example of creating a custom wallet adapter for an injected EIP-1193 provider:
 
 ```ts twoslash
 import {
   Chain,
-  DerivationPath,
-  NetworkDerivationPath,
   createWallet,
-  type ChainWallet,
-  type EVMChain,
+  filterSupportedChains,
   getEvmToolbox,
+  USwapError,
+  type EVMChain,
 } from "@tcswap/sdk";
+import { BrowserProvider } from "ethers";
 
 export const myCustomWallet = createWallet({
   name: "connectMyCustomWallet",
@@ -39,33 +40,26 @@ export const myCustomWallet = createWallet({
     Chain.Polygon,
   ],
   connect: ({ addChain, supportedChains, walletType }) =>
-    async function connectMyCustomWallet(chains: typeof supportedChains) {
-      const filteredChains = chains.filter((chain) =>
-        supportedChains.includes(chain)
-      );
+    async function connectMyCustomWallet(chains: Chain[]) {
+      // Throws `wallet_chain_not_supported` if none of the chains are supported
+      const filteredChains = filterSupportedChains({ chains, supportedChains });
 
-      if (filteredChains.length === 0) {
-        return false;
+      if (!window.ethereum) {
+        throw new USwapError("core_wallet_connection_not_found");
       }
 
+      const provider = new BrowserProvider(window.ethereum, "any");
+
       for (const chain of filteredChains) {
-        const provider = window.ethereum;
+        await provider.send("eth_requestAccounts", []);
+        const signer = await provider.getSigner();
+        const address = await signer.getAddress();
 
-        if (!provider) {
-          throw new Error("Provider not found");
-        }
-
-        const accounts = await provider.request({
-          method: "eth_requestAccounts",
-        });
-        const address = accounts[0];
-
-        const toolbox = await getEvmToolbox(chain, {
-          provider,
-        });
+        const toolbox = await getEvmToolbox(chain as EVMChain, { provider, signer });
 
         addChain({
           ...toolbox,
+          getBalance: () => toolbox.getBalance(address),
           chain,
           walletType,
           address,
@@ -84,65 +78,37 @@ Here's an example of creating a wallet adapter for a hardware wallet:
 ```ts twoslash
 import {
   Chain,
-  NetworkDerivationPath,
-  WalletOption,
+  FeeOption,
   createWallet,
-  type ChainWallet,
+  filterSupportedChains,
   getEvmToolbox,
   getUtxoToolbox,
+  type EVMChain,
+  type GenericTransferParams,
 } from "@tcswap/sdk";
+import type { Signer } from "ethers";
+
+// Replace these stubs with your device SDK
+declare function detectDevice(): Promise<string | undefined>;
+declare function getAddressFromDevice(chain: Chain, deviceId: string): Promise<string>;
+declare function signPsbtWithDevice(deviceId: string, psbt: unknown, inputs: unknown): Promise<string>;
+declare function createHardwareSigner(deviceId: string, chain: EVMChain): Signer;
 
 export const customHardwareWallet = createWallet({
   name: "connectCustomHardware",
-
   walletType: "customHardwareName",
-
   supportedChains: [Chain.Bitcoin, Chain.Ethereum, Chain.BinanceSmartChain],
-  connect: ({ addChain, supportedChains, walletType }) => {
-    async function detectDevice() {
-      return "device-123";
-    }
-
-    async function getAddressFromDevice(chain: Chain, deviceId: string) {
-      return {
-        address:
-          chain === Chain.Bitcoin
-            ? "bc1q...test"
-            : "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-        publicKey: "dummy-public-key",
-      };
-    }
-
-    async function signTransactionWithDevice(
-      deviceId: string,
-      tx: any,
-      chain: Chain
-    ) {
-      return "signed-transaction-hex";
-    }
-
-    function createHardwareProvider(deviceId: string, chain: Chain) {
-      return {};
-    }
-
-    async function connectCustomHardware(
-      chains: typeof supportedChains,
-      options?: { deviceId?: string }
-    ) {
-      const filteredChains = chains.filter((chain) =>
-        supportedChains.includes(chain)
-      );
+  connect: ({ addChain, supportedChains, walletType }) =>
+    async function connectCustomHardware(chains: Chain[], options?: { deviceId?: string }) {
+      const filteredChains = filterSupportedChains({ chains, supportedChains });
       const deviceId = options?.deviceId || (await detectDevice());
 
-      if (filteredChains.length === 0 || !deviceId) {
+      if (!deviceId) {
         return false;
       }
 
       for (const chain of filteredChains) {
-        const { address, publicKey } = await getAddressFromDevice(
-          chain,
-          deviceId
-        );
+        const address = await getAddressFromDevice(chain, deviceId);
 
         if (chain === Chain.Bitcoin) {
           const btcToolbox = await getUtxoToolbox(Chain.Bitcoin);
@@ -152,32 +118,27 @@ export const customHardwareWallet = createWallet({
             chain,
             walletType,
             address,
-            publicKey,
             getBalance: () => btcToolbox.getBalance(address),
-            transfer: async (
-              params: Parameters<typeof btcToolbox.transfer>[0]
-            ) => {
-              const { assetValue, recipient, memo } = params;
-              const tx = await btcToolbox.buildTx({
-                recipient,
-                assetValue,
+            transfer: async (params: GenericTransferParams) => {
+              const feeRate =
+                params.feeRate || (await btcToolbox.getFeeRates())[FeeOption.Average];
+
+              const { psbt, inputs } = await btcToolbox.createTransaction({
+                ...params,
+                feeRate,
+                fetchTxHex: true,
                 sender: address,
-                feeRate: 1.33,
-                memo,
               });
 
-              const signedTx = await signTransactionWithDevice(
-                deviceId,
-                tx,
-                chain
-              );
+              const signedTxHex = await signPsbtWithDevice(deviceId, psbt, inputs);
 
-              return btcToolbox.broadcastTx(signedTx);
+              return btcToolbox.broadcastTx(signedTxHex);
             },
           });
         } else {
-          const evmToolbox = await getEvmToolbox(chain, {
-            provider: createHardwareProvider(deviceId, chain),
+          const evmChain = chain as EVMChain;
+          const evmToolbox = await getEvmToolbox(evmChain, {
+            signer: createHardwareSigner(deviceId, evmChain),
           });
 
           addChain({
@@ -191,16 +152,13 @@ export const customHardwareWallet = createWallet({
       }
 
       return true;
-    }
-
-    return connectCustomHardware;
-  },
+    },
 });
 ```
 
 ## Using Your Custom Wallet with TCSwap
 
-To use your custom wallet adapter with TCSwap:
+Spread the wallet into `wallets`; the connect method is exposed on the client under the wallet's `name`:
 
 ```ts twoslash
 import { USwap, Chain } from "@tcswap/sdk";
@@ -211,38 +169,43 @@ const uSwap = USwap({
 });
 
 async function connectWithCustomWallet() {
-  await uSwap.connectMyCustomWallet(["ETH", "BSC"]);
+  await uSwap.connectMyCustomWallet([Chain.Ethereum, Chain.BinanceSmartChain]);
 
-  const ethWallet = await uSwap.getWallet("ETH");
+  const ethWallet = uSwap.getWalletByChain(Chain.Ethereum);
+  const ethAddress = uSwap.getAddress(Chain.Ethereum);
 }
 ```
+
+To keep the default wallets as well, use `createUSwap({ wallets: { ...myCustomWallet } })`, which merges yours with the defaults.
 
 ## Testing Your Wallet Adapter
 
 Test your wallet adapter thoroughly before using it in production:
 
 ```ts twoslash
-import { describe, jest, it, expect, beforeEach } from "bun:test";
+import { describe, mock, it, expect, beforeEach } from "bun:test";
 import { Chain, AssetValue, USwap } from "@tcswap/sdk";
 import { myCustomWallet } from "./my-custom-wallet";
 
+const ADDRESS = "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
+const createClient = () => USwap({ wallets: { ...myCustomWallet } });
+
 describe("MyCustomWallet", () => {
-  let uSwap: ReturnType<typeof USwap>;
+  let uSwap: ReturnType<typeof createClient>;
 
   beforeEach(() => {
-    global.window = {
+    // Minimal EIP-1193 mock; extend it with the RPC methods your test needs
+    globalThis.window = {
       ethereum: {
-        request: jest
-          .fn()
-          .mockResolvedValue(["0x742d35Cc6634C0532925a3b844Bc454e4438f44e"]),
+        request: mock(async ({ method }: { method: string }) => {
+          if (method === "eth_requestAccounts" || method === "eth_accounts") return [ADDRESS];
+          if (method === "eth_chainId") return "0x1";
+          return null;
+        }),
       },
-    };
+    } as any;
 
-    uSwap = USwap({
-      wallets: {
-        myWallet: myCustomWallet,
-      },
-    });
+    uSwap = createClient();
   });
 
   it("should connect to Ethereum", async () => {
@@ -250,16 +213,14 @@ describe("MyCustomWallet", () => {
 
     const wallets = uSwap.getAllWallets();
     expect(wallets[Chain.Ethereum]).toBeDefined();
-    expect(wallets[Chain.Ethereum].address).toBe(
-      "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
-    );
+    expect(wallets[Chain.Ethereum].address).toBe(ADDRESS);
   });
 
   it("should transfer ETH", async () => {
     await uSwap.connectMyCustomWallet([Chain.Ethereum]);
 
-    const mockTransfer = jest.fn().mockResolvedValue("0xtxhash");
-    uSwap.getWallet(Chain.Ethereum).transfer = mockTransfer;
+    const mockTransfer = mock(async () => "0xtxhash");
+    uSwap.getWalletByChain(Chain.Ethereum).transfer = mockTransfer;
 
     const result = await uSwap.transfer({
       assetValue: AssetValue.from({ chain: Chain.Ethereum, value: "0.1" }),

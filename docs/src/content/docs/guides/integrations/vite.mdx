@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Vite
 description: A guide to integrate TCSwap with Vite applications.
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
 
@@ -14,16 +15,24 @@ Install TCSwap and required dependencies:
 
 <Tabs syncKey="package-manager">
   <TabItem label="bun" icon="bun">
-    ```bash bun add @tcswap/sdk vite-plugin-node-polyfills ```
+    ```bash
+    bun add @tcswap/sdk vite-plugin-node-polyfills
+    ```
   </TabItem>
   <TabItem label="pnpm">
-    ```bash pnpm add @tcswap/sdk vite-plugin-node-polyfills ```
+    ```bash
+    pnpm add @tcswap/sdk vite-plugin-node-polyfills
+    ```
   </TabItem>
   <TabItem label="npm">
-    ```bash npm install @tcswap/sdk vite-plugin-node-polyfills ```
+    ```bash
+    npm install @tcswap/sdk vite-plugin-node-polyfills
+    ```
   </TabItem>
   <TabItem label="yarn">
-    ```bash yarn add @tcswap/sdk vite-plugin-node-polyfills ```
+    ```bash
+    yarn add @tcswap/sdk vite-plugin-node-polyfills
+    ```
   </TabItem>
 </Tabs>
 
@@ -103,7 +112,7 @@ function App() {
       );
 
       setIsConnected(true);
-      const ethAddress = await uSwapClient.getAddress(Chain.Ethereum);
+      const ethAddress = uSwapClient.getAddress(Chain.Ethereum);
       setAddress(ethAddress);
     } catch (error) {
       console.error("Failed to connect wallet:", error);
@@ -111,7 +120,7 @@ function App() {
   };
 
   const disconnectWallet = () => {
-    uSwapClient.disconnectWallet(Chain.Ethereum);
+    uSwapClient.disconnectChain(Chain.Ethereum);
     setIsConnected(false);
     setAddress("");
   };
@@ -168,19 +177,27 @@ If you encounter WebAssembly-related errors, ensure you have the required plugin
 
 <Tabs syncKey="package-manager">
   <TabItem label="bun" icon="bun">
-    ```bash bun add -D vite-plugin-wasm vite-plugin-top-level-await ```
+    ```bash
+    bun add -D vite-plugin-wasm vite-plugin-top-level-await
+    ```
   </TabItem>
   <TabItem label="pnpm">
-    ```bash pnpm add -D vite-plugin-wasm vite-plugin-top-level-await ```
+    ```bash
+    pnpm add -D vite-plugin-wasm vite-plugin-top-level-await
+    ```
   </TabItem>
   <TabItem label="npm">
-    ```bash npm install -D vite-plugin-wasm vite-plugin-top-level-await ```
+    ```bash
+    npm install -D vite-plugin-wasm vite-plugin-top-level-await
+    ```
   </TabItem>
   <TabItem label="yarn">
-    ```bash yarn add -D vite-plugin-wasm vite-plugin-top-level-await ```
+    ```bash
+    yarn add -D vite-plugin-wasm vite-plugin-top-level-await
+    ```
   </TabItem>
 </Tabs>
 
 ## Example Repository
 
-For a complete working example, check out the [Vite playground](https:
+For a complete working example, check out the [Vite playground](https://github.com/thorchain/TCSwap/tree/main/playgrounds/vite).

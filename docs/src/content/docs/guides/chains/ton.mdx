@@ -1,0 +1,111 @@
+---
+title: TON Integration
+description: Use the TCSwap TON toolbox for TON balances, transfers with comments and address validation
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+TCSwap supports TON (`Chain.Ton`, `"TON"`) through the TON toolbox, built on `@ton/ton` and `@ton/crypto`.
+
+## Overview
+
+- **Native asset**: TON, 9 decimals. Derivation path in the chain config is `[44, 607, 0, 0, 0]`.
+- **Wallet contract**: `WalletContractV4` on workchain `0`.
+- **RPC**: the first URL in the TON chain config (`https://ton.api.onfinality.io/public`).
+- **Transfers**: native TON only, with an optional text comment. Jettons are not supported by the toolbox.
+- **Wallets**: the keystore wallet (`connectKeystore`) supports TON.
+
+## Import
+
+```ts
+import { getTONAddressValidator, getTONToolbox } from "@tcswap/toolboxes/ton";
+import type { TONSigner, TONToolboxParams, TONTransferParams, TONWallet } from "@tcswap/toolboxes/ton";
+```
+
+`@tcswap/sdk` does not re-export the TON subpath. Through the SDK, use `getToolbox(Chain.Ton, params)` or connect a wallet.
+
+## Creating the toolbox
+
+<Tabs>
+<TabItem label="With SDK">
+```ts
+import { Chain, createUSwap } from "@tcswap/sdk";
+
+const uSwap = createUSwap();
+await uSwap.connectKeystore([Chain.Ton], "your 24 word TON mnemonic");
+
+const wallet = uSwap.getWalletByChain(Chain.Ton);
+```
+</TabItem>
+<TabItem label="Standalone toolbox">
+```ts
+import { getTONToolbox } from "@tcswap/toolboxes/ton";
+
+// From a mnemonic
+const toolbox = await getTONToolbox({ phrase: "your 24 word TON mnemonic" });
+
+// From a key pair
+const withKeys = await getTONToolbox({ signer: { publicKey, secretKey } });
+```
+</TabItem>
+</Tabs>
+
+`TONToolboxParams` is `{ provider?: string } & ({ signer?: TONSigner } | { phrase?: string; derivationPath?: DerivationPathArray; index?: number })`. A phrase goes through `mnemonicToWalletKey`, which uses the TON mnemonic scheme, so `derivationPath` and `index` have no effect. `provider` is accepted but not used; the RPC always comes from the chain config.
+
+The toolbox returns `createTransaction`, `estimateTransactionFee`, `getAddress`, `getBalance`, `sendTransaction`, `transfer` and `validateAddress`.
+
+## Common operations
+
+### Address and balance
+
+```ts
+const address = toolbox.getAddress();
+
+const [tonBalance] = await toolbox.getBalance(address);
+```
+
+`getAddress` throws `core_wallet_connection_not_found` when the toolbox has no signer. `getBalance` requires an address and returns a single TON `AssetValue` (zero if the lookup fails).
+
+### Transfer
+
+```ts
+import { AssetValue, Chain } from "@tcswap/helpers";
+
+await toolbox.transfer({
+  assetValue: AssetValue.from({ chain: Chain.Ton, value: "2" }),
+  memo: "optional comment",
+  recipient: "EQ...",
+});
+```
+
+`transfer` reads the wallet `seqno`, builds one internal message (the memo becomes a text comment), signs it with the secret key and sends it.
+
+### Build and send separately
+
+```ts
+const cell = await toolbox.createTransaction({ assetValue, recipient: "EQ..." });
+
+const hash = await toolbox.sendTransaction(cell); // hex hash of the message cell
+```
+
+`createTransaction` returns the signed transfer `Cell`. `sendTransaction` sends it and returns the cell hash as hex.
+
+### Fee estimate
+
+```ts
+const fee = await toolbox.estimateTransactionFee(); // fixed 0.0001 TON
+```
+
+### Address validation
+
+```ts
+const validateAddress = await getTONAddressValidator();
+validateAddress("EQ..."); // true if Address.parse succeeds
+```
+
+Also available as `toolbox.validateAddress` and through `getAddressValidator()` from `@tcswap/toolboxes`.
+
+## Notes
+
+- `estimateTransactionFee` does not query the network.
+- There is no TON-specific swap plugin. Routes that settle by a plain deposit transfer (for example [Houdini](/guides/plugins/houdini)) call the toolbox's `transfer`.

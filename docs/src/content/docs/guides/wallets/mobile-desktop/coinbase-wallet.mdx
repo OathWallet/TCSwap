@@ -1,24 +1,23 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Coinbase Wallet Integration
 description: Complete guide to integrating Coinbase Wallet with TCSwap SDK v4 for mobile and desktop support
 ---
 
-Coinbase Wallet is a popular self-custody wallet that provides access to Ethereum and other EVM-compatible networks. TCSwap SDK v4 supports both the mobile Coinbase Wallet app (via WalletConnect/SDK) and the browser extension, offering seamless integration for your dApp.
+{/* Modifications © 2025 Horizontal Systems. */}
+
+Coinbase Wallet is a popular self-custody wallet that provides access to Ethereum and other EVM-compatible networks. TCSwap supports Coinbase Wallet in two ways: `coinbaseWallet` (`connectCoinbaseWallet`, `WalletOption.COINBASE_MOBILE`), which uses the Coinbase Wallet SDK (`@coinbase/wallet-sdk`), and the injected browser extension through `evmWallet` with `WalletOption.COINBASE_WEB`.
 
 ## Supported Chains
 
-TCSwap supports Coinbase Wallet for these EVM-compatible chains:
+`connectCoinbaseWallet` accepts the following chains (`COINBASE_SUPPORTED_CHAINS`): Arbitrum, Avalanche, Base, BNB Smart Chain, Ethereum, Optimism, Polygon and X Layer. Other chains are ignored with a console warning.
 
-- **Layer 1**: Ethereum, BinanceSmartChain, Avalanche, Polygon
-- **Layer 2**: Arbitrum, Optimism, Base (Coinbase's own L2)
-- **All EVM-compatible chains** supported by Coinbase Wallet
+The browser extension path (`connectEVMWallet(chains, WalletOption.COINBASE_WEB)`) accepts any chain in `EVMChains` and uses `window.coinbaseWalletExtension`.
 
 ## Coinbase Wallet Variants
 
-1. **Mobile App**: iOS and Android app with WalletConnect/SDK integration
-2. **Browser Extension**: Desktop browser extension
-3. **Smart Wallet**: Account abstraction wallet (for supported features)
+1. **Coinbase Wallet SDK** (`coinbaseWallet` / `connectCoinbaseWallet`): the SDK is created with
+`createCoinbaseWalletSDK({ ...config.integrations.coinbase, appChainIds })`, where `appChainIds` are the chain IDs of the requested chains. Without `integrations.coinbase`, the app name defaults to `"TCSwap Playground"`, so set your own `appName`.
+2. **Browser Extension** (`evmWallet` / `connectEVMWallet` with `WalletOption.COINBASE_WEB`).
 
 ## Installation and Setup
 
@@ -35,7 +34,7 @@ For mobile integration:
 
 For browser extension:
 
-1. Install from [Chrome Web Store](https:
+1. Install from the [official download page](https://www.coinbase.com/wallet/downloads)
 2. Set up wallet with seed phrase
 3. Extension works like MetaMask with EIP-1193 provider
 
@@ -45,7 +44,7 @@ For browser extension:
 - **Browser**: Chrome, Firefox, Safari, Edge
 - **Network**: Internet connection for wallet communication
 
-## USwap Integration
+## TCSwap Integration
 
 ### Basic Setup
 
@@ -65,7 +64,7 @@ const uSwap = USwap({
     integrations: {
       coinbase: {
         appName: "Your DApp Name",
-        appLogoUrl: "https:
+        appLogoUrl: "https://your-app.com/logo.png",
         darkMode: false,
       },
     },
@@ -89,7 +88,7 @@ const uSwap = createUSwap({
     integrations: {
       coinbase: {
         appName: "Your DApp Name",
-        appLogoUrl: "https:
+        appLogoUrl: "https://your-app.com/logo.png",
       },
     },
   },
@@ -109,7 +108,7 @@ const uSwap = USwap({
     integrations: {
       coinbase: {
         appName: "My DApp",
-        appLogoUrl: "https:
+        appLogoUrl: "https://your-app.com/logo.png",
         darkMode: false,
       },
     },
@@ -150,7 +149,7 @@ const uSwap = USwap({
     integrations: {
       coinbase: {
         appName: "Multi-Chain DApp",
-        appLogoUrl: "https:
+        appLogoUrl: "https://your-app.com/logo.png",
       },
     },
   },
@@ -233,7 +232,7 @@ const uSwap = USwap({
     integrations: {
       coinbase: {
         appName: "My DApp",
-        appLogoUrl: "https:
+        appLogoUrl: "https://your-app.com/logo.png",
       },
     },
   },
@@ -245,7 +244,7 @@ await uSwap.connectCoinbaseWallet([Chain.Ethereum]);
 
 async function sendEther() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+  const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
 
   try {
     console.log("Sending ETH via Coinbase Wallet...");
@@ -259,7 +258,7 @@ async function sendEther() {
     });
 
     console.log("✅ ETH transfer sent:", txHash);
-    console.log("🔍 View on Etherscan:", `https:
+    console.log("🔍 View on Etherscan:", `https://etherscan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -280,7 +279,7 @@ const uSwap = USwap({
     integrations: {
       coinbase: {
         appName: "Token DApp",
-        appLogoUrl: "https:
+        appLogoUrl: "https://your-app.com/logo.png",
       },
     },
   },
@@ -294,7 +293,7 @@ async function sendERC20Token() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
 
 
-  const amount = AssetValue.fromChainOrSignature("ETH.USDC-0xA0B86A33E6441E89D5E4C4EDF4C8DF4C0E6C62F6", 100);
+  const amount = AssetValue.from({ asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", value: 100 });
 
   try {
     console.log("📱 Approve USDC transfer in Coinbase Wallet");
@@ -324,7 +323,7 @@ const uSwap = USwap({
     integrations: {
       coinbase: {
         appName: "Base DApp",
-        appLogoUrl: "https:
+        appLogoUrl: "https://your-app.com/logo.png",
       },
     },
   },
@@ -336,7 +335,7 @@ await uSwap.connectCoinbaseWallet([Chain.Base]);
 
 async function sendOnBase() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("BASE.ETH", 0.001);
+  const amount = AssetValue.from({ asset: "BASE.ETH", value: 0.001 });
 
   try {
     console.log("📱 Sending ETH on Base via Coinbase Wallet");
@@ -347,7 +346,7 @@ async function sendOnBase() {
     });
 
     console.log("✅ Base ETH transfer sent:", txHash);
-    console.log("🔍 View on BaseScan:", `https:
+    console.log("🔍 View on BaseScan:", `https://basescan.org/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -359,7 +358,7 @@ async function sendOnBase() {
 
 async function sendBaseToken() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("BASE.USDC-0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 10);
+  const amount = AssetValue.from({ asset: "BASE.USDC-0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", value: 10 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -387,7 +386,7 @@ const uSwap = USwap({
     integrations: {
       coinbase: {
         appName: "Multi-Chain DApp",
-        appLogoUrl: "https:
+        appLogoUrl: "https://your-app.com/logo.png",
       },
     },
   },
@@ -399,7 +398,7 @@ await uSwap.connectCoinbaseWallet([Chain.Ethereum, Chain.Polygon, Chain.Arbitrum
 
 async function sendOnPolygon() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("MATIC.MATIC", 1);
+  const amount = AssetValue.from({ asset: "POL.POL", value: 1 });
 
   try {
     console.log("📱 Approve MATIC transfer in Coinbase Wallet");
@@ -410,7 +409,7 @@ async function sendOnPolygon() {
     });
 
     console.log("✅ MATIC transfer sent:", txHash);
-    console.log("🔍 View on PolygonScan:", `https:
+    console.log("🔍 View on PolygonScan:", `https://polygonscan.com/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -421,7 +420,7 @@ async function sendOnPolygon() {
 
 async function sendOnArbitrum() {
   const recipient = "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC";
-  const amount = AssetValue.fromChainOrSignature("ARB.ETH", 0.001);
+  const amount = AssetValue.from({ asset: "ARB.ETH", value: 0.001 });
 
   try {
     const txHash = await uSwap.transfer({
@@ -430,7 +429,7 @@ async function sendOnArbitrum() {
     });
 
     console.log("✅ Arbitrum ETH transfer sent:", txHash);
-    console.log("🔍 View on Arbiscan:", `https:
+    console.log("🔍 View on Arbiscan:", `https://arbiscan.io/tx/${txHash}`);
 
     return txHash;
   } catch (error) {
@@ -453,7 +452,7 @@ const uSwap = USwap({
     integrations: {
       coinbase: {
         appName: "Network Manager",
-        appLogoUrl: "https:
+        appLogoUrl: "https://your-app.com/logo.png",
       },
     },
   },
@@ -540,7 +539,7 @@ async function connectOptimalCoinbaseWallet() {
           integrations: {
             coinbase: {
               appName: "Auto-Detect DApp",
-              appLogoUrl: "https:
+              appLogoUrl: "https://your-app.com/logo.png",
               darkMode: false,
             },
           },
@@ -573,7 +572,7 @@ const uSwap = USwap({
     integrations: {
       coinbase: {
         appName: "Diagnostic App",
-        appLogoUrl: "https:
+        appLogoUrl: "https://your-app.com/logo.png",
       },
     },
   },
@@ -636,7 +635,7 @@ function checkCoinbaseAvailability() {
   if (!available) {
     console.log("❌ No Coinbase Wallet detected");
     console.log("🔧 Install Coinbase Wallet:");
-    console.log("- Mobile: https:
+    console.log("- Mobile: https://www.coinbase.com/wallet/downloads");
     console.log("- Extension: Chrome Web Store");
   }
 
@@ -649,7 +648,7 @@ function checkCoinbaseAvailability() {
 ```ts twoslash
 async function handleTransactionErrors() {
   try {
-    const amount = AssetValue.fromChainOrSignature("ETH.ETH", 0.01);
+    const amount = AssetValue.from({ asset: "ETH.ETH", value: 0.01 });
     const txHash = await uSwap.transfer({
       assetValue: amount,
       recipient: "0x742d35Cc6632C0532c718C5E6F99d7E89b12c9bC",
@@ -734,7 +733,7 @@ const uSwap = USwap({
     integrations: {
       coinbase: {
         appName: "Your App Name",
-        appLogoUrl: "https:
+        appLogoUrl: "https://your-app.com/logo.png",
         darkMode: false,
 
         overrideIsMetaMask: false,
@@ -743,8 +742,8 @@ const uSwap = USwap({
     },
 
     rpcUrls: {
-      [Chain.Ethereum]: "https:
-      [Chain.Base]: "https:
+      [Chain.Ethereum]: ["https://ethereum-rpc.publicnode.com"],
+      [Chain.Base]: ["https://base-rpc.publicnode.com"],
     },
   },
   wallets: { ...coinbaseWallet },
@@ -766,7 +765,7 @@ async function secureTransfer(recipient: string, amount: number) {
     throw new Error("Amount must be positive");
   }
 
-  const assetValue = AssetValue.fromChainOrSignature("ETH.ETH", amount);
+  const assetValue = AssetValue.from({ asset: "ETH.ETH", value: amount });
 
 
   console.log("📋 Transaction Details:");
@@ -794,13 +793,13 @@ function getSecureConfig() {
     integrations: {
       coinbase: {
         appName: process.env.APP_NAME || "My DApp",
-        appLogoUrl: process.env.APP_LOGO_URL || "https:
+        appLogoUrl: process.env.APP_LOGO_URL || "https://your-app.com/logo.png",
         darkMode: process.env.THEME === 'dark',
       },
     },
     rpcUrls: {
-      [Chain.Ethereum]: process.env.ETHEREUM_RPC_URL,
-      [Chain.Base]: process.env.BASE_RPC_URL,
+      [Chain.Ethereum]: [process.env.ETHEREUM_RPC_URL],
+      [Chain.Base]: [process.env.BASE_RPC_URL],
     },
   };
 }

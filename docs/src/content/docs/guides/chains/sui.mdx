@@ -1,0 +1,127 @@
+---
+title: Sui Integration
+description: Use the TCSwap Sui toolbox for SUI balances, transfers, signing and address validation
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+TCSwap supports Sui (`Chain.Sui`, `"SUI"`) through the Sui toolbox, built on `@mysten/sui`.
+
+## Overview
+
+- **Native asset**: SUI, 9 decimals. Derivation path in the chain config is `[44, 784, 0, 0, 0]`.
+- **Network**: Sui mainnet by default (`getFullnodeUrl("mainnet")`), or any RPC URL you pass as `provider`.
+- **Transfers**: native SUI only. Other coin types show up in balances but cannot be sent yet.
+- **Wallets**: the keystore wallet (`connectKeystore`) supports Sui.
+
+## Import
+
+```ts
+import { getSuiAddressValidator, getSuiToolbox } from "@tcswap/toolboxes/sui";
+import type { SuiCreateTransactionParams, SuiToolboxParams, SuiTransferParams, SuiWallet } from "@tcswap/toolboxes/sui";
+```
+
+`@tcswap/sdk` does not re-export the Sui subpath. Through the SDK, use `getToolbox(Chain.Sui, params)` or connect a wallet.
+
+## Creating the toolbox
+
+<Tabs>
+<TabItem label="With SDK">
+```ts
+import { Chain, createUSwap } from "@tcswap/sdk";
+
+const uSwap = createUSwap();
+await uSwap.connectKeystore([Chain.Sui], "your mnemonic phrase");
+
+const wallet = uSwap.getWalletByChain(Chain.Sui);
+```
+</TabItem>
+<TabItem label="Standalone toolbox">
+```ts
+import { getSuiToolbox } from "@tcswap/toolboxes/sui";
+
+// From a mnemonic
+const toolbox = await getSuiToolbox({ phrase: "your mnemonic phrase" });
+
+// With an Ed25519Keypair and a custom RPC
+const custom = await getSuiToolbox({ provider: "https://my-sui-rpc.example", signer: keypair });
+
+// Read-only
+const readOnly = await getSuiToolbox();
+```
+</TabItem>
+</Tabs>
+
+`SuiToolboxParams` is `{ provider?: string; phrase?: string; signer?: Ed25519Keypair }`. A phrase is turned into a keypair with `Ed25519Keypair.deriveKeypair(phrase)`, which uses the default Sui derivation path.
+
+The toolbox returns `createTransaction`, `estimateTransactionFee`, `getAddress`, `getBalance`, `signTransaction`, `transfer` and `validateAddress`.
+
+## Common operations
+
+### Address and balance
+
+```ts
+const address = toolbox.getAddress(); // "" without a signer
+
+const balances = await toolbox.getBalance(); // or toolbox.getBalance("0x...")
+```
+
+`getBalance` returns SUI first, then every other coin type with a non-zero balance as `SUI.<SYMBOL>-<coinType>`. Other coins are read with 9 decimals. If the RPC call fails, it returns a zero SUI balance.
+
+### Transfer
+
+```ts
+import { AssetValue, Chain } from "@tcswap/helpers";
+
+const digest = await toolbox.transfer({
+  assetValue: AssetValue.from({ chain: Chain.Sui, value: "1.5" }),
+  gasBudget: 10_000_000, // optional
+  recipient: "0x...",
+});
+```
+
+`transfer` splits the amount from the gas coin, transfers it, signs and executes with `signAndExecuteTransaction`, and returns the transaction digest. It needs a signer.
+
+### Build and sign separately
+
+```ts
+const { tx, txBytes } = await toolbox.createTransaction({
+  assetValue,
+  recipient: "0x...",
+  sender: toolbox.getAddress(),
+});
+
+const signed = await toolbox.signTransaction(txBytes);
+```
+
+`signTransaction` accepts raw transaction bytes, `SuiCreateTransactionParams`, or the object returned by `createTransaction`.
+
+### Fee estimate
+
+```ts
+const fee = await toolbox.estimateTransactionFee({ assetValue, recipient: "0x...", sender: address });
+```
+
+With params, the toolbox dry-runs the transaction and returns computation plus storage cost minus the storage rebate. Without params, or if the dry run fails, it returns 0.01 SUI. `uSwap.estimateTransactionFee` for Sui calls it without params.
+
+### Address validation
+
+```ts
+const validateAddress = await getSuiAddressValidator();
+validateAddress("0x..."); // uses isValidSuiAddress
+```
+
+Also available as `toolbox.validateAddress` and through `getAddressValidator()` from `@tcswap/toolboxes`.
+
+## Errors
+
+| Error key | When |
+| --- | --- |
+| `toolbox_sui_address_required` | `getBalance` without an address and without a signer |
+| `toolbox_sui_no_sender` | No sender address to build a transaction |
+| `toolbox_sui_no_signer` | `transfer` or `signTransaction` without a signer |
+| `toolbox_sui_transaction_creation_error` | Building the transaction failed, including any attempt to send a coin other than SUI |
+
+## Notes
+
+- There is no Sui-specific swap plugin. Routes that settle by a plain deposit transfer (for example [Houdini](/guides/plugins/houdini)) call the toolbox's `transfer`.

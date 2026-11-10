@@ -1,8 +1,9 @@
-{/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Ethereum Integration
 description: Complete guide to integrating Ethereum with TCSwap SDK for DeFi operations and cross-chain swaps
 ---
+
+{/* Modifications © 2025 Horizontal Systems. */}
 
 import { Card, CardGrid, Code, Tabs, TabItem } from "@astrojs/starlight/components";
 
@@ -40,29 +41,30 @@ import { createUSwap, Chain } from '@tcswap/sdk';
 
 const uSwap = createUSwap();
 
-const ethWallet = await uSwap.getWallet(Chain.Ethereum);
+await uSwap.connectKeystore([Chain.Ethereum], "your twelve word mnemonic phrase here");
 
-````
+const ethWallet = uSwap.getWalletByChain(Chain.Ethereum);
+```
 </TabItem>
 <TabItem label="Standalone Toolbox">
 ```typescript
 // @noErrorValidation
-import { getEthereumToolbox } from '@tcswap/toolboxes/evm';
+import { Chain } from '@tcswap/helpers';
+import { ETHToolbox, getEvmToolbox } from '@tcswap/toolboxes/evm';
 
-
-const ethToolbox = await getEthereumToolbox({
+const ethToolbox = await ETHToolbox({
   phrase: "your twelve word mnemonic phrase here",
-
-  derivationPath: [44, 60, 0, 0, 0]
 });
 
+// or resolve the toolbox by chain
+const toolbox = await getEvmToolbox(Chain.Ethereum, { phrase: "..." });
 
-const ethToolbox = await getEthereumToolbox({
+// or bring your own ethers signer and provider
+const customToolbox = await ETHToolbox({
   signer: customEthereumSigner,
-  provider: customProvider
+  provider: customProvider,
 });
-````
-
+```
 </TabItem>
 </Tabs>
 
@@ -78,9 +80,9 @@ import { Chain, FeeOption } from "@tcswap/sdk";
 
 await uSwap.connectKeystore([Chain.Ethereum], "your mnemonic phrase");
 
-await uSwap.connectBrowserWallet(Chain.Ethereum);
+await uSwap.connectEVMWallet([Chain.Ethereum]);
 
-await uSwap.connectWalletConnect([Chain.Ethereum]);
+await uSwap.connectWalletconnect([Chain.Ethereum]);
 
 await uSwap.connectLedger([Chain.Ethereum]);
 ```
@@ -111,25 +113,22 @@ console.log(`Transaction hash: ${txHash}`);
 const usdcTransfer = await uSwap.transfer({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
   assetValue: AssetValue.from({
-    chain: Chain.Ethereum,
-    symbol: "USDC",
-    address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     value: "100",
   }),
   feeOptionKey: FeeOption.Average,
 });
 
-const toolbox = await getEthereumToolbox({ phrase: "..." });
+const toolbox = await ETHToolbox({ phrase: "..." });
 
-const balance = await toolbox.getBalance(
-  "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+// Returns AssetValue[] with the native balance and token balances
+const balances = await toolbox.getBalance(
+  "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7"
 );
 
-const tokenInfo = await toolbox.getTokenInfo(
-  "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+const usdcBalance = balances.find(
+  (asset) => asset.symbol === "USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
 );
-console.log(tokenInfo);
 ```
 
 ### Smart Contract Interactions
@@ -138,22 +137,22 @@ The Ethereum toolbox provides multiple ways to interact with smart contracts:
 
 ```typescript
 // @noErrorValidation
+import { erc20ABI } from "@tcswap/helpers/contracts";
 
-const result = await toolbox.call({
-  contractAddress: "0x...",
-  abi: contractABI,
+const balance = await toolbox.call<bigint>({
+  contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  abi: erc20ABI,
   funcName: "balanceOf",
   funcParams: ["0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7"],
 });
 
-const txHash = await toolbox.call({
-  contractAddress: "0x...",
-  abi: contractABI,
+const txHash = await toolbox.call<string>({
+  contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  abi: erc20ABI,
   funcName: "transfer",
-  funcParams: ["0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7", "1000000"],
+  funcParams: ["0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7", 1000000n],
   txOverrides: {
-    gasLimit: "100000",
-    value: "0",
+    gasLimit: 100000n,
   },
 });
 
@@ -173,23 +172,36 @@ ERC-20 tokens require approvals before they can be spent by contracts:
 
 ```typescript
 // @noErrorValidation
+import { getProvider } from "@tcswap/toolboxes/evm";
 
 const isApproved = await toolbox.isApproved({
-  contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  assetAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   spenderAddress: "0x...",
-  amount: "1000000000",
+  from: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
+  amount: 1000000000n,
 });
 
 if (!isApproved) {
   const approveTx = await toolbox.approve({
-    contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    assetAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     spenderAddress: "0x...",
-    amount: "1000000000",
+    amount: 1000000000n,
   });
 
   console.log(`Approval transaction: ${approveTx}`);
 
-  await toolbox.waitForTransaction(approveTx);
+  const provider = await getProvider(Chain.Ethereum);
+  await provider.waitForTransaction(approveTx);
+}
+
+// With a connected wallet, the client can handle approvals as well
+const usdc = AssetValue.from({
+  asset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  value: "1000",
+});
+
+if (!(await uSwap.isAssetValueApproved(usdc, "0x..."))) {
+  await uSwap.approveAssetValue(usdc, "0x...");
 }
 ```
 
@@ -200,28 +212,36 @@ Ethereum supports both legacy and EIP-1559 fee structures:
 ```typescript
 // @noErrorValidation
 
-const txParams = await toolbox.buildTransaction({
+const eip1559Tx = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.Ethereum, value: "0.1" }),
-  feeOptionKey: FeeOption.Fast,
-
-  maxFeePerGas: "20000000000",
-  maxPriorityFeePerGas: "2000000000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.Ethereum, value: "0.1" }),
+  maxFeePerGas: 20000000000n,
+  maxPriorityFeePerGas: 2000000000n,
 });
 
-const legacyTx = await toolbox.buildTransaction({
+const legacyTx = await toolbox.createTransaction({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
-  amount: AssetValue.from({ chain: Chain.Ethereum, value: "0.1" }),
-  feeOptionKey: FeeOption.Fast,
-  gasPrice: "20000000000",
+  sender: "0xYourAddress",
+  assetValue: AssetValue.from({ chain: Chain.Ethereum, value: "0.1" }),
+  gasPrice: 20000000000n,
 });
 
-const gasInfo = await toolbox.getGasPrices();
+const txHash = await toolbox.sendTransaction({ ...eip1559Tx, feeOptionKey: FeeOption.Fast });
+
+const gasPrices = await toolbox.estimateGasPrices();
 console.log({
-  slow: gasInfo.average,
-  standard: gasInfo.fast,
-  fast: gasInfo.fastest,
+  average: gasPrices.average.maxFeePerGas,
+  fast: gasPrices.fast.maxFeePerGas,
+  fastest: gasPrices.fastest.maxFeePerGas,
 });
+
+const fee = await toolbox.estimateTransactionFee({
+  ...eip1559Tx,
+  chain: Chain.Ethereum,
+  feeOption: FeeOption.Fast,
+});
+console.log(`Estimated fee: ${fee.toSignificant(6)} ETH`);
 ```
 
 ## Cross-Chain Swaps
@@ -230,30 +250,31 @@ Use Ethereum as source or destination for cross-chain swaps via THORChain:
 
 ```typescript
 // @noErrorValidation
+import { USwapApi } from "@tcswap/sdk";
 
-const ethToBtcQuote = await uSwap.getQuote({
+const { routes: ethToBtcRoutes } = await USwapApi.getSwapQuote({
   sellAsset: "ETH.ETH",
   sellAmount: "1",
   buyAsset: "BTC.BTC",
-  senderAddress: uSwap.getAddress(Chain.Ethereum),
-  recipientAddress: uSwap.getAddress(Chain.Bitcoin),
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+  destinationAddress: uSwap.getAddress(Chain.Bitcoin),
 });
 
 const swapTx = await uSwap.swap({
-  route: ethToBtcQuote.routes[0],
+  route: ethToBtcRoutes[0],
   feeOptionKey: FeeOption.Fast,
 });
 
-const usdcToRuneQuote = await uSwap.getQuote({
+const { routes: usdcToRuneRoutes } = await USwapApi.getSwapQuote({
   sellAsset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   sellAmount: "1000",
   buyAsset: "THOR.RUNE",
-  senderAddress: uSwap.getAddress(Chain.Ethereum),
-  recipientAddress: uSwap.getAddress(Chain.THORChain),
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+  destinationAddress: uSwap.getAddress(Chain.THORChain),
 });
 
 const swapResult = await uSwap.swap({
-  route: usdcToRuneQuote.routes[0],
+  route: usdcToRuneRoutes[0],
   feeOptionKey: FeeOption.Average,
 });
 ```
@@ -264,27 +285,28 @@ TCSwap supports major Ethereum DEXs through integrated routing:
 
 ```typescript
 // @noErrorValidation
+import { ProviderName, USwapApi } from "@tcswap/sdk";
 
-const uniswapQuote = await uSwap.getQuote({
+const { routes: uniswapRoutes } = await USwapApi.getSwapQuote({
   sellAsset: "ETH.ETH",
   sellAmount: "1",
   buyAsset: "ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-  senderAddress: uSwap.getAddress(Chain.Ethereum),
-  recipientAddress: uSwap.getAddress(Chain.Ethereum),
-  providers: ["UNISWAPV3"],
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+  destinationAddress: uSwap.getAddress(Chain.Ethereum),
+  providers: [ProviderName.UNISWAP_V3],
 });
 
-const oneinchQuote = await uSwap.getQuote({
+const { routes: oneinchRoutes } = await USwapApi.getSwapQuote({
   sellAsset: "ETH.DAI-0x6B175474E89094C44Da98b954EedeAC495271d0F",
   sellAmount: "1000",
   buyAsset: "ETH.WBTC-0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
-  senderAddress: uSwap.getAddress(Chain.Ethereum),
-  recipientAddress: uSwap.getAddress(Chain.Ethereum),
-  providers: ["ONEINCH"],
+  sourceAddress: uSwap.getAddress(Chain.Ethereum),
+  destinationAddress: uSwap.getAddress(Chain.Ethereum),
+  providers: [ProviderName.ONEINCH],
 });
 
 const dexSwap = await uSwap.swap({
-  route: oneinchQuote.routes[0],
+  route: oneinchRoutes[0],
   feeOptionKey: FeeOption.Fast,
 });
 ```
@@ -293,17 +315,18 @@ const dexSwap = await uSwap.swap({
 
 ```typescript
 // @noErrorValidation
-import { validateEthereumAddress } from "@tcswap/toolboxes/evm";
+import { evmValidateAddress, toChecksumAddress } from "@tcswap/toolboxes/evm";
 
-const isValidAddress = validateEthereumAddress(
-  "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7"
-);
+const isValidAddress = evmValidateAddress({
+  address: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
+});
 console.log(isValidAddress);
 
-import { getAddress } from "ethers";
+// Same check through the toolbox
+toolbox.validateAddress("0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7");
 
 try {
-  const checksumAddress = getAddress(
+  const checksumAddress = toChecksumAddress(
     "0x742c4b4f3e0b5b069f5dcf8a65eaf8d3e888a3e7"
   );
   console.log(checksumAddress);
@@ -318,20 +341,19 @@ Configure gas fees based on network conditions:
 
 ```typescript
 // @noErrorValidation
-import { FeeOption } from "@tcswap/sdk";
+import { FeeOption, USwapConfig } from "@tcswap/sdk";
 
-const feeOptions = {
+// Multipliers applied to the base gas price for each fee option
+USwapConfig.setFeeMultipliers({
   [FeeOption.Average]: 1.0,
   [FeeOption.Fast]: 1.5,
   [FeeOption.Fastest]: 2.0,
-};
+});
 
 const customTx = await uSwap.transfer({
   recipient: "0x742c4B4F3e0b5b069F5DCF8A65Eaf8d3E888a3E7",
   assetValue: AssetValue.from({ chain: Chain.Ethereum, value: "0.1" }),
-  gasLimit: "21000",
-  maxFeePerGas: "30000000000",
-  maxPriorityFeePerGas: "2000000000",
+  feeOptionKey: FeeOption.Fastest,
 });
 ```
 
@@ -349,21 +371,21 @@ try {
   });
 } catch (error) {
   if (error instanceof USwapError) {
-    switch (error.code) {
-      case "toolbox_evm_insufficient_funds":
-        console.error("Insufficient ETH for transaction");
+    switch (error.message.split(":")[0]) {
+      case "toolbox_evm_no_signer":
+        console.error("No signer available for this wallet");
         break;
-      case "toolbox_evm_gas_estimation_failed":
+      case "toolbox_evm_error_estimating_gas_limit":
         console.error("Could not estimate gas");
         break;
-      case "toolbox_evm_transaction_failed":
+      case "toolbox_evm_error_sending_transaction":
         console.error("Transaction failed:", error.cause);
         break;
-      case "toolbox_evm_invalid_address":
-        console.error("Invalid Ethereum address");
+      case "toolbox_evm_no_contract_address":
+        console.error("Token contract address could not be resolved");
         break;
-      case "toolbox_evm_token_not_approved":
-        console.error("Token approval required");
+      case "core_wallet_connection_not_found":
+        console.error("Ethereum wallet is not connected");
         break;
       default:
         console.error("Unknown error:", error);
@@ -381,9 +403,9 @@ try {
 import { JsonRpcProvider } from 'ethers';
 
 
-const customProvider = new JsonRpcProvider("https:
+const customProvider = new JsonRpcProvider("https://ethereum-rpc.publicnode.com");
 
-const toolbox = await getEthereumToolbox({
+const toolbox = await ETHToolbox({
   phrase: "your mnemonic",
   provider: customProvider
 });
@@ -392,9 +414,9 @@ const toolbox = await getEthereumToolbox({
 import { USwapConfig } from '@tcswap/sdk';
 
 USwapConfig.setRpcUrl(Chain.Ethereum, [
-  "https:
-  "https:
-  "https:
+  "https://ethereum-rpc.publicnode.com",
+  "https://eth.llamarpc.com",
+  "https://cloudflare-eth.com",
 ]);
 ```
 
@@ -403,33 +425,33 @@ USwapConfig.setRpcUrl(Chain.Ethereum, [
 ```typescript
 // @noErrorValidation
 
-USwapConfig.setRpcUrl(Chain.Ethereum, "https:
-USwapConfig.setEnv('isMainnet', false);
+USwapConfig.setRpcUrl(Chain.Ethereum, ["https://ethereum-rpc.publicnode.com"]);
 
-
-const testToolbox = await getEthereumToolbox({ phrase: "..." });
+const testToolbox = await ETHToolbox({ phrase: "..." });
 ```
 
 ### Transaction Monitoring
 
+The toolbox returns transaction hashes; use an ethers provider to track them:
+
 ```typescript
 // @noErrorValidation
+import { getProvider } from "@tcswap/toolboxes/evm";
 
 const txHash = await uSwap.transfer({
   /* ... */
 });
 
-const receipt = await toolbox.waitForTransaction(txHash);
-console.log(`Confirmed in block ${receipt.blockNumber}`);
+const provider = await getProvider(Chain.Ethereum);
 
-const status = await toolbox.getTransactionStatus(txHash);
-console.log(status);
+const receipt = await provider.waitForTransaction(txHash);
+console.log(`Confirmed in block ${receipt?.blockNumber}`);
 
-const txDetails = await toolbox.getTransaction(txHash);
+const txDetails = await provider.getTransactionReceipt(txHash);
 console.log({
-  blockNumber: txDetails.blockNumber,
-  gasUsed: txDetails.gasUsed,
-  status: txDetails.status,
+  blockNumber: txDetails?.blockNumber,
+  gasUsed: txDetails?.gasUsed,
+  status: txDetails?.status,
 });
 ```
 
@@ -438,9 +460,9 @@ console.log({
 1. **Always validate addresses** before sending transactions:
 
    ```typescript
-   import { isAddress } from "ethers";
+   import { evmValidateAddress } from "@tcswap/toolboxes/evm";
 
-   if (!isAddress(recipient)) {
+   if (!evmValidateAddress({ address: recipient })) {
      throw new Error("Invalid Ethereum address");
    }
    ```
@@ -448,13 +470,13 @@ console.log({
 2. **Check balances** before transactions:
 
    ```typescript
-   const balance = await toolbox.getBalance(senderAddress);
+   const [ethBalance] = await toolbox.getBalance(senderAddress);
    const requiredAmount = AssetValue.from({
      chain: Chain.Ethereum,
      value: "0.1",
    });
 
-   if (balance.lt(requiredAmount.add(estimatedGas))) {
+   if (ethBalance.lt(requiredAmount.add(estimatedFee))) {
      throw new Error("Insufficient balance");
    }
    ```
@@ -473,19 +495,19 @@ console.log({
 4. **Handle network congestion**:
 
    ```typescript
-   const gasInfo = await toolbox.getGasPrices();
+   const gasPrices = await toolbox.estimateGasPrices();
 
-   if (gasInfo.fast > 50000000000) {
+   if ((gasPrices.fast.maxFeePerGas ?? 0n) > 50000000000n) {
      console.warn("Network is congested, consider waiting");
    }
    ```
 
-5. **Batch operations** when possible:
+5. **Batch operations** when possible (`ETHToolbox` only):
 
    ```typescript
-   const multicallResults = await toolbox.multicall([
-     { target: "0x...", callData: "0x..." },
-     { target: "0x...", callData: "0x..." },
+   const multicallTx = await toolbox.multicall([
+     { address: "0x...", data: "0x..." },
+     { address: "0x...", data: "0x..." },
    ]);
    ```
 
@@ -493,29 +515,21 @@ console.log({
 
 ### ENS (Ethereum Name Service)
 
+ENS lookups go through the ethers provider:
+
 ```typescript
 // @noErrorValidation
+import { getProvider } from "@tcswap/toolboxes/evm";
 
-const address = await toolbox.resolveName("vitalik.eth");
+const provider = await getProvider(Chain.Ethereum);
+
+const address = await provider.resolveName("vitalik.eth");
 console.log(address);
 
-const ensName = await toolbox.lookupAddress(
+const ensName = await provider.lookupAddress(
   "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
 );
 console.log(ensName);
-```
-
-### MEV Protection
-
-```typescript
-// @noErrorValidation
-
-const protectedProvider = new JsonRpcProvider("https:
-
-
-const privateTx = await toolbox.sendPrivateTransaction({
-  /* transaction parameters */
-});
 ```
 
 ## Troubleshooting
@@ -542,18 +556,15 @@ const privateTx = await toolbox.sendPrivateTransaction({
    - Verify token contract address is correct
    - Ensure recipient address can receive tokens
 
-### Debug Mode
+### Inspecting Transactions
 
 ```typescript
 // @noErrorValidation
 
-import { USwapConfig } from "@tcswap/sdk";
-
-USwapConfig.setEnv("debug", true);
-
-const txParams = await toolbox.buildTransaction({
+const txParams = await toolbox.createTransaction({
   recipient: "0x...",
-  amount: AssetValue.from({ chain: Chain.Ethereum, value: "0.1" }),
+  sender: "0x...",
+  assetValue: AssetValue.from({ chain: Chain.Ethereum, value: "0.1" }),
 });
 
 console.log("Transaction parameters:", txParams);
@@ -563,9 +574,10 @@ console.log("Transaction parameters:", txParams);
 
 ### Core Methods
 
-- `getBalance()` - Get ETH or token balance
+- `getBalance()` - Get ETH and token balances (`AssetValue[]`)
 - `transfer()` - Send ETH or tokens
-- `buildTransaction()` - Construct transaction parameters
+- `createTransaction()` - Construct transaction parameters
+- `sendTransaction()` - Sign and broadcast a transaction object
 - `call()` - Execute smart contract functions
 - `estimateCall()` - Estimate gas for contract calls
 
@@ -573,14 +585,14 @@ console.log("Transaction parameters:", txParams);
 
 - `approve()` - Approve token spending
 - `isApproved()` - Check approval status
-- `getTokenInfo()` - Get token metadata
+- `approvedAmount()` - Get current allowance
 
 ### Utility Methods
 
-- `getGasPrices()` - Get current gas prices
-- `waitForTransaction()` - Wait for confirmation
-- `getTransaction()` - Get transaction details
+- `estimateGasPrices()` - Get current gas prices per fee option
+- `estimateTransactionFee()` - Estimate the fee for a transaction
 - `validateAddress()` - Validate address format
+- `multicall()` - Batch contract calls (`ETHToolbox` only)
 
 ## Related Chain Integrations
 
@@ -623,4 +635,4 @@ console.log("Transaction parameters:", txParams);
 
 **Building multi-chain apps?** Explore [Bitcoin](/guides/chains/bitcoin) and [Cosmos](/guides/chains/cosmos) integrations.
 
-**Need help?** Join our [Discord community](https:
+**Need help?** Open an issue on [GitHub](https://github.com/thorchain/TCSwap/issues).

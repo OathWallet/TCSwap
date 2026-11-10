@@ -4,7 +4,7 @@
 
 "use client";
 import { type EVMTransaction, type QuoteResponseRoute, USwapApi } from "@tcswap/helpers/api";
-import type { AssetValue, Chain, SwapKit } from "@tcswap/sdk";
+import type { AssetValue, Chain, USwap } from "@tcswap/sdk";
 import { ProviderName, USwapNumber } from "@tcswap/sdk";
 import { useCallback, useState } from "react";
 
@@ -12,7 +12,7 @@ type Props = {
   inputAsset?: AssetValue;
   outputAsset?: AssetValue;
   handleSwap: (route: QuoteResponseRoute, isChainflipBoost: boolean) => Promise<void>;
-  skClient?: ReturnType<typeof SwapKit<{}, {}>>;
+  skClient?: ReturnType<typeof USwap<{}, {}>>;
 };
 
 export const SwapInputs = ({ skClient, inputAsset, outputAsset, handleSwap }: Props) => {
