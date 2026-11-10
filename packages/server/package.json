@@ -6,7 +6,7 @@
     "@tcswap/toolboxes": "workspace:*",
     "@tcswap/wallet-keystore": "workspace:*"
   },
-  "description": "USwap - Server SDK",
+  "description": "TCSwap - Server SDK",
   "exports": {
     ".": {
       "bun": "./src/index.ts",

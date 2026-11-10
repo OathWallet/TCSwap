@@ -9,7 +9,7 @@
     "@tcswap/toolboxes": "workspace:*",
     "ts-pattern": "^5.9.0"
   },
-  "description": "USwap Plugin - Chainflip",
+  "description": "TCSwap Plugin - Chainflip",
   "devDependencies": {
     "@near-js/utils": "2.5.0",
     "@polkadot/keyring": "13.5.7",

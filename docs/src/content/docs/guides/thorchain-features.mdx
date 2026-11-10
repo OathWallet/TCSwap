@@ -4,14 +4,14 @@ title: THORChain Features
 description: Learn how to use advanced THORChain DeFi features including liquidity provision, savings, and lending through USwap.
 ---
 
-THORChain provides advanced DeFi features beyond simple swaps. USwap includes full support for these features through the THORChain [plugin](/guides/create-plugin).
+THORChain provides advanced DeFi features beyond simple swaps. TCSwap includes full support for these features through the THORChain [plugin](/guides/create-plugin).
 
 ## Prerequisites
 
 To use THORChain features, you need:
 
 1. A connected wallet with RUNE
-2. USwap initialized with the THORChain plugin (included by default)
+2. TCSwap initialized with the THORChain plugin (included by default)
 
 ```typescript
 // @noErrorValidation
@@ -248,7 +248,7 @@ const ethAddress = thornameDetails.aliases.find(
 
 ## Node Operations
 
-For node operators, USwap provides bond management functions.
+For node operators, TCSwap provides bond management functions.
 
 ### Bond RUNE
 
@@ -336,7 +336,7 @@ if (!isApproved) {
 
 ## Maya Protocol
 
-Maya is a fork of THORChain with similar features. USwap supports Maya through the Maya plugin:
+Maya is a fork of THORChain with similar features. TCSwap supports Maya through the Maya plugin:
 
 ```typescript
 // @noErrorValidation
@@ -452,7 +452,7 @@ Here's a complete list of THORChain plugin methods:
 ### Utility Methods
 
 - `getInboundDataByChain()` - Get vault addresses and gas rates
-- `swap()` - Execute swaps (used internally by USwap)
+- `swap()` - Execute swaps (used internally by TCSwap)
 
 ## Next Steps
 

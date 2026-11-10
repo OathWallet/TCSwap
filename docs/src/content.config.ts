@@ -13,7 +13,7 @@ export const collections = {
       extend: z.object({
         banner: z
           .object({ content: z.string() })
-          .default({ content: "USwap is a powerful suite of tools for building blockchain applications." }),
+          .default({ content: "TCSwap is a powerful suite of tools for building blockchain applications." }),
       }),
     }),
   }),

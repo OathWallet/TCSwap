@@ -1,23 +1,23 @@
 {/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Connecting Wallets
-description: How to connect different types of wallets with USwap
+description: How to connect different types of wallets with TCSwap
 ---
 
 import WalletConnectionDemo from "../../../../components/WalletConnectionDemo.astro";
 import TryItYourself from "../../../../components/TryItYourself.astro";
 import PlaygroundLinks from "../../../../components/PlaygroundLinks.astro";
 
-USwap provides multiple ways to connect wallets for different blockchain networks. This guide demonstrates how to connect various wallet types using both granular and all-in-one approaches.
+TCSwap provides multiple ways to connect wallets for different blockchain networks. This guide demonstrates how to connect various wallet types using both granular and all-in-one approaches.
 
 <WalletConnectionDemo
   chains={["Ethereum", "Bitcoin", "Thorchain", "Cosmos"]}
   walletTypes={["MetaMask", "Keystore", "WalletConnect", "Keplr"]}
 />
 
-## Two Approaches to Using USwap
+## Two Approaches to Using TCSwap
 
-You can use USwap in two ways:
+You can use TCSwap in two ways:
 
 1. **Granular approach** - Import only what you need from individual packages:
 
@@ -32,7 +32,7 @@ You can use USwap in two ways:
 
 The granular approach is recommended for frontend applications as it results in smaller bundle sizes.
 
-## Initialize USwap
+## Initialize TCSwap
 
 ### Granular Approach (Frontend Recommended)
 

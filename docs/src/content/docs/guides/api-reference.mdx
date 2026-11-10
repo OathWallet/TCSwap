@@ -705,7 +705,7 @@ const channel = await USwapApi.getChainflipDepositChannel({
 
 ## Rate Limits
 
-The USwap API has rate limits that vary by endpoint:
+The TCSwap API has rate limits that vary by endpoint:
 
 - **Without API key**: 10 requests per minute
 - **With API key**: 100 requests per minute
@@ -823,7 +823,7 @@ async function validateToken(identifier: string) {
 
 ### USwapConfig API
 
-The `USwapConfig` API provides methods to manage USwap's configuration at runtime. This includes RPC URLs, API keys, custom headers, and environment settings:
+The `USwapConfig` API provides methods to manage TCSwap's configuration at runtime. This includes RPC URLs, API keys, custom headers, and environment settings:
 
 ### Core Methods
 
@@ -988,7 +988,7 @@ if (userPrefersTestnet) {
 
 ### Fee Multiplier System
 
-USwap provides a unified fee multiplier system across all chains:
+TCSwap provides a unified fee multiplier system across all chains:
 
 ```typescript
 // @noErrorValidation
@@ -1012,14 +1012,14 @@ await wallet.transfer({
 ### Key Features
 
 - **Automatic Stagenet Support**: When `isStagenet` is true, appropriate stagenet URLs are used automatically
-- **Custom Headers**: Set authentication headers for Midgard, THORNode, and USwap APIs
-- **Runtime Updates**: All configuration can be updated dynamically without recreating USwap instances
+- **Custom Headers**: Set authentication headers for Midgard, THORNode, and TCSwap APIs
+- **Runtime Updates**: All configuration can be updated dynamically without recreating TCSwap instances
 - **Environment-Based Config**: Easily switch between development, staging, and production environments
 - **Unified Fee System**: Consistent fee multipliers across all supported chains
 
 ## TypeScript Type Definitions
 
-All USwap API methods are fully typed. Here are the comprehensive type definitions:
+All TCSwap API methods are fully typed. Here are the comprehensive type definitions:
 
 ```typescript
 // @noErrorValidation

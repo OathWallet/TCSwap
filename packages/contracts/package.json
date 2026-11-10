@@ -1,6 +1,6 @@
 {
   "author": "swapkit-oss",
-  "description": "USwap - Contracts",
+  "description": "TCSwap - Contracts",
   "exports": {
     ".": {
       "bun": "./src/index.ts",

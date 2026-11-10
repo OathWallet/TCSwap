@@ -6,7 +6,7 @@
     "@tcswap/plugins": "workspace:*",
     "@tcswap/wallets": "workspace:*"
   },
-  "description": "USwap - Browser SDK",
+  "description": "TCSwap - Browser SDK",
   "exports": {
     ".": {
       "bun": "./src/index.ts",

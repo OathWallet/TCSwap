@@ -1,12 +1,12 @@
 {/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Migrate to v4
-description: Guide for upgrading from USwap v3 to v4
+description: Guide for upgrading from TCSwap v3 to v4
 ---
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
 
-This guide provides a comprehensive overview of all breaking changes and migration steps from USwap v3 to v4.
+This guide provides a comprehensive overview of all breaking changes and migration steps from TCSwap v3 to v4.
 
 ## Major Breaking Changes
 
@@ -62,7 +62,7 @@ All imports must be updated:
 
 ### 3. Client Initialization Changes
 
-The USwap client initialization has changed:
+The TCSwap client initialization has changed:
 
 ```diff
 
@@ -297,7 +297,7 @@ await client.connectKeystore(chains, phrase);
 
 ### 1. Runtime Configuration Updates (Major Improvement)
 
-The biggest improvement in v4 is the ability to update configuration at runtime without recreating the USwap client.
+The biggest improvement in v4 is the ability to update configuration at runtime without recreating the TCSwap client.
 
 #### v3 Approach (Client Recreation Required)
 

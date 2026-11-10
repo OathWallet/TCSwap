@@ -315,8 +315,8 @@ export const trezorWallet = createWallet({
       if (!success) {
         const trezorConfig = USwapConfig.get("integrations").trezor;
         const manifest = trezorConfig
-          ? { ...trezorConfig, appName: (trezorConfig as any).appName || "USwap" }
-          : { appName: "USwap", appUrl: "", email: "" };
+          ? { ...trezorConfig, appName: (trezorConfig as any).appName || "TCSwap" }
+          : { appName: "TCSwap", appUrl: "", email: "" };
         TrezorConnect.init({ lazyLoad: true, manifest });
       }
 

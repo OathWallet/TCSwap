@@ -1,7 +1,7 @@
 {/* Modifications © 2025 Horizontal Systems. */}
 ---
-title: Getting Started with USwap
-description: A comprehensive guide to building your first cross-chain DeFi application with USwap
+title: Getting Started with TCSwap
+description: A comprehensive guide to building your first cross-chain DeFi application with TCSwap
 ---
 
 import { Card, CardGrid, Code, Tabs, TabItem } from "@astrojs/starlight/components";
@@ -10,7 +10,7 @@ import TryItYourself from "../../../components/TryItYourself.astro";
 import PlaygroundLinks from "../../../components/PlaygroundLinks.astro";
 import StepByStepGuide from "../../../components/StepByStepGuide.astro";
 
-USwap is a comprehensive SDK that unifies blockchain interactions across 20+ chains. This guide will walk you through installation, setup, and building your first cross-chain application.
+TCSwap is a comprehensive SDK that unifies blockchain interactions across 20+ chains. This guide will walk you through installation, setup, and building your first cross-chain application.
 
 ## Prerequisites
 
@@ -47,7 +47,7 @@ Before starting, ensure you have:
 
 ## Basic Setup
 
-### 1. Import and Initialize USwap
+### 1. Import and Initialize TCSwap
 
 ```typescript
 // @noErrorValidation
@@ -58,8 +58,8 @@ const uSwap = createUSwap();
 ```
 
 <TryItYourself
-  title="Try USwap Now"
-  description="Jump into a live environment and experiment with USwap right away"
+  title="Try TCSwap Now"
+  description="Jump into a live environment and experiment with TCSwap right away"
 >
   <PlaygroundLinks
     compact={true}
@@ -68,7 +68,7 @@ const uSwap = createUSwap();
   />
 </TryItYourself>
 
-### 2. Configure USwap (Optional)
+### 2. Configure TCSwap (Optional)
 
 For production applications, you'll want to add your own API keys and custom settings. See our [Configuration Guide](/start/configuration) for detailed setup:
 
@@ -94,11 +94,11 @@ const uSwap = createUSwap({
 
 ## Core Concepts
 
-USwap has several fundamental concepts you should understand. For a detailed explanation, see our [Core Concepts](/start/core-concepts) guide.
+TCSwap has several fundamental concepts you should understand. For a detailed explanation, see our [Core Concepts](/start/core-concepts) guide.
 
 ### 1. Chains
 
-USwap supports 20+ blockchain networks with a unified [Chain](/start/core-concepts#chain-types) identifier system:
+TCSwap supports 20+ blockchain networks with a unified [Chain](/start/core-concepts#chain-types) identifier system:
 
 ```typescript
 // @noErrorValidation
@@ -113,7 +113,7 @@ const thorchain = Chain.THORChain;
 
 ### 2. AssetValue
 
-[AssetValue](/start/core-concepts#assetvalue) is USwap's way of representing amounts of any asset:
+[AssetValue](/start/core-concepts#assetvalue) is TCSwap's way of representing amounts of any asset:
 
 ```typescript
 // @noErrorValidation
@@ -131,7 +131,7 @@ const usdc = AssetValue.from({
 
 ### 3. Wallets
 
-USwap supports 20+ [wallet types](/start/core-concepts#wallet-types):
+TCSwap supports 20+ [wallet types](/start/core-concepts#wallet-types):
 
 ```typescript
 // @noErrorValidation
@@ -192,7 +192,7 @@ console.log(`Balance: ${walletWithBalance.balance}`);
 
 ### Perform a Swap
 
-Use the [USwap API](/guides/api-reference) to get quotes and execute swaps:
+Use the [TCSwap API](/guides/api-reference) to get quotes and execute swaps:
 
 ```typescript
 // @noErrorValidation
@@ -226,12 +226,12 @@ console.log(`Swap transaction: ${txHash}`);
 
 <StepByStepGuide
   title="🚀 Your First Cross-Chain Swap"
-  description="Follow this interactive tutorial to perform your first swap with USwap"
+  description="Follow this interactive tutorial to perform your first swap with TCSwap"
   playgroundUrl="https://stackblitz.com/github/uswap/uswap/tree/develop/playgrounds/nextjs"
   steps={[
     {
-      title: "Install and Initialize USwap",
-      description: "Set up USwap in your project with the required dependencies",
+      title: "Install and Initialize TCSwap",
+      description: "Set up TCSwap in your project with the required dependencies",
       code: `bun add @tcswap/sdk\n\nimport { createUSwap } from '@tcswap/sdk';\n\nconst uSwap = createUSwap({
   config: {
     apiKeys: {
@@ -239,8 +239,8 @@ console.log(`Swap transaction: ${txHash}`);
     }
   }
 });`,
-      action: "Install USwap and create your instance",
-      result: "USwap is now initialized and ready to use",
+      action: "Install TCSwap and create your instance",
+      result: "TCSwap is now initialized and ready to use",
       tips: [
         "Get your API key from https://api.uSwap.dev for enhanced features",
         "The SDK works without API keys for basic functionality",
@@ -401,7 +401,7 @@ const balance = await btcToolbox.getBalance(address);
 
 ### Custom Plugin Development
 
-Create your own plugin to extend USwap:
+Create your own plugin to extend TCSwap:
 
 ```typescript
 // @noErrorValidation
@@ -431,7 +431,7 @@ await uSwap.getCustomData();
 
 ## Error Handling
 
-USwap uses typed errors for better debugging:
+TCSwap uses typed errors for better debugging:
 
 ```typescript
 // @noErrorValidation
@@ -470,12 +470,12 @@ Now that you understand the basics, here's your recommended learning path:
 <CardGrid>
   <Card title="Core Concepts" icon="star">
     Master AssetValue, error handling, and TypeScript types that power every
-    USwap operation. [Learn Core Concepts →](/start/core-concepts)
+    TCSwap operation. [Learn Core Concepts →](/start/core-concepts)
   </Card>
 
   <Card title="Configuration" icon="setting">
     Set up API keys, RPC URLs, and customize settings for your production
-    environment. [Configure USwap →](/start/configuration)
+    environment. [Configure TCSwap →](/start/configuration)
   </Card>
 </CardGrid>
 
@@ -536,16 +536,16 @@ Now that you understand the basics, here's your recommended learning path:
   </Card>
 </CardGrid>
 
-### 🔧 Extend & Customize USwap
+### 🔧 Extend & Customize TCSwap
 
 <CardGrid>
   <Card title="Framework Integration" icon="code">
-    Use USwap with Next.js, Vite, React Native, and other frameworks.
+    Use TCSwap with Next.js, Vite, React Native, and other frameworks.
     [Framework Guides →](/guides/integrations/nextjs)
   </Card>
 
   <Card title="Custom Plugins" icon="puzzle">
-    Create plugins for new protocols and extend USwap's capabilities. [Plugin
+    Create plugins for new protocols and extend TCSwap's capabilities. [Plugin
     Development →](/guides/create-plugin)
   </Card>
 
@@ -569,4 +569,4 @@ If you're upgrading from v3 or want to explore the latest features:
 
 ---
 
-Happy building with USwap! 🚀
+Happy building with TCSwap! 🚀

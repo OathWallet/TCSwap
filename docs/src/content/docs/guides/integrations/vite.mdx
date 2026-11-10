@@ -1,16 +1,16 @@
 {/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Vite
-description: A guide to integrate USwap with Vite applications.
+description: A guide to integrate TCSwap with Vite applications.
 ---
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
 
-This guide will help you integrate USwap into your Vite application with proper Node.js polyfills and WebAssembly support.
+This guide will help you integrate TCSwap into your Vite application with proper Node.js polyfills and WebAssembly support.
 
 ## Installation
 
-Install USwap and required dependencies:
+Install TCSwap and required dependencies:
 
 <Tabs syncKey="package-manager">
   <TabItem label="bun" icon="bun">
@@ -72,7 +72,7 @@ export default defineConfig({
 
 ## Basic Setup
 
-Create a USwap client instance:
+Create a TCSwap client instance:
 
 ```typescript
 // @noErrorValidation
@@ -84,7 +84,7 @@ export const uSwapClient = createUSwap();
 
 ## React Component Example
 
-Here's a basic example of using USwap in a React component:
+Here's a basic example of using TCSwap in a React component:
 
 ```tsx
 import { useState, useEffect } from "react";
@@ -144,7 +144,7 @@ VITE_USWAP_API_KEY=your_api_key_here
 VITE_WALLETCONNECT_PROJECT_ID=your_project_id_here
 ```
 
-Then configure USwap:
+Then configure TCSwap:
 
 ```typescript
 // @noErrorValidation

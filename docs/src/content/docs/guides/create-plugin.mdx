@@ -1,18 +1,18 @@
 {/* Modifications © 2025 Horizontal Systems. */}
 ---
-title: Creating a USwap Plugin
-description: Learn how to create a custom plugin for USwap
+title: Creating a TCSwap Plugin
+description: Learn how to create a custom plugin for TCSwap
 ---
 
-USwap plugins extend the functionality of the core library to support various DeFi protocols and services. This guide explains how to create a custom plugin for USwap.
+TCSwap plugins extend the functionality of the core library to support various DeFi protocols and services. This guide explains how to create a custom plugin for USwap.
 
 ## Plugin Structure
 
-A USwap plugin consists of the following components:
+A TCSwap plugin consists of the following components:
 
 1. A plugin factory created with `createPlugin`
 2. Plugin methods that interact with external services or smart contracts
-3. Integration with the USwap client
+3. Integration with the TCSwap client
 
 ## Basic Plugin Example
 
@@ -237,9 +237,9 @@ export const ExchangePlugin = createPlugin({
 });
 ```
 
-## Using Your Plugin with USwap
+## Using Your Plugin with TCSwap
 
-Once you've created your plugin, you can use it with the USwap client:
+Once you've created your plugin, you can use it with the TCSwap client:
 
 ```ts twoslash
 import { createUSwap, Chain, keystoreWallet } from "@tcswap/sdk";
@@ -271,7 +271,7 @@ async function connectAndUsePlugin() {
 
 ## Best Practices
 
-When creating a USwap plugin, follow these best practices:
+When creating a TCSwap plugin, follow these best practices:
 
 1. **Error Handling**: Use USwapError for consistent error reporting
 2. **Type Safety**: Leverage TypeScript to provide proper type definitions

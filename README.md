@@ -9,7 +9,7 @@
 
 ## Packages
 
-This repo contains packages around USwap sdk and its integrations with different blockchains.
+This repo contains packages around TCSwap sdk and its integrations with different blockchains.
 
 ## Contributing
 

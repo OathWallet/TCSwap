@@ -85,7 +85,7 @@ const initialState = {
   feeMultipliers: undefined as FeeMultiplierConfig | undefined,
   integrations: {
     radix: {
-      applicationName: "USwap Playground",
+      applicationName: "TCSwap Playground",
       applicationVersion: "0.0.1",
       dAppDefinitionAddress: "account_rdx128r289p58222hcvev7frs6kue76pl7pdcnw8725aw658v0zggkh9ws",
       network: { dashboardBase: "https://dashboard.radixdlt.com", networkId: 1, networkName: "mainnet" },

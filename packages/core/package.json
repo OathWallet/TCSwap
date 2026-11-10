@@ -7,7 +7,7 @@
     "@tcswap/wallets": "workspace:*",
     "ts-pattern": "^5.9.0"
   },
-  "description": "USwap - Core",
+  "description": "TCSwap - Core",
   "devDependencies": { "ts-pattern": "5.9.0" },
   "exports": {
     ".": {

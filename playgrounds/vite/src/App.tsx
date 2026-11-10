@@ -153,7 +153,7 @@ const App = () => {
           padding: 20,
           width: 200,
         }}>
-        <h3 style={{ fontSize: 18, margin: 0 }}>USwap Playground</h3>
+        <h3 style={{ fontSize: 18, margin: 0 }}>TCSwap Playground</h3>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ color: "#999", fontSize: 11, fontWeight: 600 }}>CONFIGURATION</div>
@@ -240,7 +240,7 @@ const App = () => {
             <label style={{ color: "#666", display: "block", fontSize: 10, marginBottom: 4 }}>uSwapApiKey</label>
             <input
               onChange={(e) => setKeys((k) => ({ ...k, uSwap: e.target.value }))}
-              placeholder="USwap API Key"
+              placeholder="TCSwap API Key"
               style={{ fontSize: 11, width: "100%" }}
               value={keys.uSwap}
             />
@@ -288,7 +288,7 @@ const App = () => {
                   <span style={{ color: "#888" }}>Broker:</span> {USwapConfig.get("envs").isDev ? "dev" : "prod"}
                 </div>
                 <div>
-                  <span style={{ color: "#888" }}>USwap API:</span>{" "}
+                  <span style={{ color: "#888" }}>TCSwap API:</span>{" "}
                   {keys.uSwap ? `${keys.uSwap.slice(0, 8)}...` : "not set"}
                 </div>
               </div>

@@ -27,7 +27,7 @@
     "ts-pattern": "^5.9.0",
     "xumm": "1.8.0"
   },
-  "description": "USwap - Wallets",
+  "description": "TCSwap - Wallets",
   "devDependencies": {
     "@coinbase/wallet-sdk": "4.3.7",
     "@cosmjs/amino": "0.37.0",

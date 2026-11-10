@@ -13,7 +13,7 @@
     "sats-connect": "~1.0.0",
     "ts-pattern": "~5.9.0"
   },
-  "description": "USwap - Wallet Extension",
+  "description": "TCSwap - Wallet Extension",
   "devDependencies": {
     "@keplr-wallet/types": "0.12.285",
     "@near-js/accounts": "2.5.0",

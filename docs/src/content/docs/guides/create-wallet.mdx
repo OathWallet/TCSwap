@@ -4,11 +4,11 @@ title: Creating a Custom Wallet
 description: A guide to create a custom wallet adapter
 ---
 
-This guide explains how to create a custom wallet adapter for USwap using the `createWallet` function.
+This guide explains how to create a custom wallet adapter for TCSwap using the `createWallet` function.
 
 ## Wallet Adapter Structure
 
-A USwap wallet adapter consists of:
+A TCSwap wallet adapter consists of:
 
 1. A wallet factory created with `createWallet`
 2. Configuration for supported chains and derivation paths
@@ -198,9 +198,9 @@ export const customHardwareWallet = createWallet({
 });
 ```
 
-## Using Your Custom Wallet with USwap
+## Using Your Custom Wallet with TCSwap
 
-To use your custom wallet adapter with USwap:
+To use your custom wallet adapter with TCSwap:
 
 ```ts twoslash
 import { USwap, Chain } from "@tcswap/sdk";
@@ -283,4 +283,4 @@ When creating a custom wallet adapter, follow these best practices:
 5. **Testing**: Test thoroughly with both happy and error paths
 6. **Documentation**: Document any special requirements or features of your wallet
 
-By following this guide, you can create a custom wallet adapter that integrates seamlessly with the USwap ecosystem.
+By following this guide, you can create a custom wallet adapter that integrates seamlessly with the TCSwap ecosystem.

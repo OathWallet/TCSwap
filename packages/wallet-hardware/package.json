@@ -27,7 +27,7 @@
     "ripple-binary-codec": "2.5.1",
     "ts-pattern": "^5.9.0"
   },
-  "description": "USwap - Wallet Hardware",
+  "description": "TCSwap - Wallet Hardware",
   "devDependencies": {
     "@cosmjs/crypto": "0.37.0",
     "@keepkey/keepkey-sdk": "0.2.62",

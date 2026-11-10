@@ -1,7 +1,7 @@
 {
   "author": "swapkit-oss",
   "dependencies": { "ts-pattern": "^5.9.0" },
-  "description": "USwap - Tokens",
+  "description": "TCSwap - Tokens",
   "devDependencies": { "@tcswap/helpers": "workspace:*", "ts-pattern": "5.9.0" },
   "exports": {
     ".": {

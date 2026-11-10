@@ -1,10 +1,10 @@
 {/* Modifications © 2025 Horizontal Systems. */}
 ---
-title: Getting started with USwap
+title: Getting started with TCSwap
 description: Get started building your app with USwap.
 hero:
   tagline:
-    USwap is a powerful suite of tools for building blockchain applications. It provides a modular framework for integrating with multiple blockchains, wallet providers, and DeFi protocols.
+    TCSwap is a powerful suite of tools for building blockchain applications. It provides a modular framework for integrating with multiple blockchains, wallet providers, and DeFi protocols.
     # actions:
     #   - text: SDK (Simple)
     #     link: #sdk-quick-start
@@ -23,10 +23,10 @@ import { Aside } from "@astrojs/starlight/components";
 
 ## Choose Your Implementation
 
-USwap offers two implementation approaches to suit your needs:
+TCSwap offers two implementation approaches to suit your needs:
 
 <Tabs>
-  <TabItem label="USwap SDK">
+  <TabItem label="TCSwap SDK">
     <div>
       <h3>Quick and Simple</h3>
       <p>The all-in-one solution that bundles Core with all available plugins and wallet integrations.</p>
@@ -46,7 +46,7 @@ USwap offers two implementation approaches to suit your needs:
     </div>
 
   </TabItem>
-  <TabItem label="USwap Core">
+  <TabItem label="TCSwap Core">
     <div>
       <h3>Flexible and Customized</h3>
       <p>The foundation package providing essential functionality.</p>
@@ -69,15 +69,15 @@ USwap offers two implementation approaches to suit your needs:
 </Tabs>
 
 <Aside type="note">
-  Choose the implementation that best suits your project's needs. USwap SDK is
+  Choose the implementation that best suits your project's needs. TCSwap SDK is
   recommended for most users getting started.
 </Aside>
 
 <div id="sdk-quick-start"></div>
 
-## USwap SDK: Quick Start
+## TCSwap SDK: Quick Start
 
-The fastest way to integrate USwap into your application.
+The fastest way to integrate TCSwap into your application.
 
 <Steps>
 1. **Install the SDK**
@@ -91,7 +91,7 @@ The fastest way to integrate USwap into your application.
      <TabItem label="yarn">```bash yarn add @tcswap/sdk ```</TabItem>
    </Tabs>
 
-2. **Initialize USwap**
+2. **Initialize TCSwap**
 
    ```typescript
    import { createUSwap } from "@tcswap/sdk";
@@ -107,7 +107,7 @@ The fastest way to integrate USwap into your application.
    });
    ```
 
-3. **Start Using USwap**
+3. **Start Using TCSwap**
 
    Connect a wallet:
 
@@ -129,7 +129,7 @@ The fastest way to integrate USwap into your application.
 
 <div id="core-setup"></div>
 
-## USwap Core: Advanced Setup
+## TCSwap Core: Advanced Setup
 
 For developers who need more control and custom configurations.
 
@@ -205,8 +205,8 @@ For developers who need more control and custom configurations.
 
        Install for interactions with specific protocols or products.
        Install the main plugins package below; you can then import specific plugin integrations as needed (e.g., `ThorchainPlugin` from `@tcswap/sdk`).
-       By building your own plugins, you can extend USwap to support new protocols, products or actions.
-       Currently USwap includes plugins for Chainflip, Thorchain, EVM, Radix, and more.
+       By building your own plugins, you can extend TCSwap to support new protocols, products or actions.
+       Currently TCSwap includes plugins for Chainflip, Thorchain, EVM, Radix, and more.
      </TabItem>
 
      <TabItem label="Toolboxes">
@@ -216,7 +216,7 @@ For developers who need more control and custom configurations.
      </TabItem>
    </Tabs>
 
-3. **Configure USwap**
+3. **Configure TCSwap**
 
    ```typescript
    import { USwap, Chain, ThorchainPlugin, EVMPlugin, keystoreWallet, ledgerWallet } from '@tcswap/sdk';
@@ -334,7 +334,7 @@ No matter which implementation you choose, you can use these common patterns:
 
 <CardGrid>
   <Card title="API Reference" icon="open-book">
-    Explore detailed documentation of all USwap components and APIs.
+    Explore detailed documentation of all TCSwap components and APIs.
     <LinkButton href="/references/">View References</LinkButton>
   </Card>
   <Card title="Guides" icon="document">

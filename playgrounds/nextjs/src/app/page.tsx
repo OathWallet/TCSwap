@@ -61,7 +61,7 @@ export default function SwapPage() {
                 basePath: "http://localhost:1646/spec/swagger.json",
                 imageUrl:
                   "https://raw.githubusercontent.com/horizontalsystems/USwap/refs/heads/develop/docs/src/assets/logo-black.png",
-                name: "USwap",
+                name: "TCSwap",
                 url: "http://localhost:1646",
               },
             },

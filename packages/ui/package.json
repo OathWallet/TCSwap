@@ -33,7 +33,7 @@
     "zod": "3.25.74",
     "zustand": "5.0.8"
   },
-  "description": "USwap - UI",
+  "description": "TCSwap - UI",
   "exports": {
     ".": {
       "bun": "./src/index.ts",

@@ -7,7 +7,7 @@
     "@tcswap/wallet-core": "workspace:*",
     "blakejs": "1.2.1"
   },
-  "description": "USwap - Wallet Keystore",
+  "description": "TCSwap - Wallet Keystore",
   "exports": {
     ".": {
       "bun": "./src/index.ts",

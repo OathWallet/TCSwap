@@ -1,6 +1,6 @@
 {
   "author": "swapkit-oss",
-  "description": "USwap - Shared Types",
+  "description": "TCSwap - Shared Types",
   "exports": {
     ".": {
       "bun": "./src/index.ts",

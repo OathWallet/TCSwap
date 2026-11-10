@@ -1,14 +1,14 @@
 {/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Next.js
-description: A guide to integrate USwap with Next.js applications.
+description: A guide to integrate TCSwap with Next.js applications.
 ---
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
 import TryItYourself from "../../../../components/TryItYourself.astro";
 import PlaygroundLinks from "../../../../components/PlaygroundLinks.astro";
 
-This guide will help you integrate USwap into your Next.js application with proper Node.js polyfills and WebAssembly support.
+This guide will help you integrate TCSwap into your Next.js application with proper Node.js polyfills and WebAssembly support.
 
 <TryItYourself
   title="🚀 Next.js Playground Ready!"
@@ -25,7 +25,7 @@ This guide will help you integrate USwap into your Next.js application with prop
 
 ## Installation
 
-Install USwap and required dependencies:
+Install TCSwap and required dependencies:
 
 <Tabs syncKey="package-manager">
   <TabItem label="bun">
@@ -165,9 +165,9 @@ Add browser field to your `package.json` to handle Node.js modules:
 }
 ```
 
-## USwap Setup
+## TCSwap Setup
 
-Create a USwap instance configuration:
+Create a TCSwap instance configuration:
 
 ```typescript
 // @noErrorValidation
@@ -309,7 +309,7 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id_here
 
 ## Server Components Considerations
 
-USwap operations that require wallet connections must be performed in client components. For server components, you can only use read-only operations:
+TCSwap operations that require wallet connections must be performed in client components. For server components, you can only use read-only operations:
 
 ```tsx
 import { AssetValue, USwapApi } from "@tcswap/sdk";

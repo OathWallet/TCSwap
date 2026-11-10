@@ -11,7 +11,7 @@ body:
 
         Before you proceed:
 
-        - Make sure you are on latest versions of USwap packages.
+        - Make sure you are on latest versions of TCSwap packages.
 
   - type: textarea
     attributes:

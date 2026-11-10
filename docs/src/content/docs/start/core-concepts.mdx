@@ -1,16 +1,16 @@
 {/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Core Concepts
-description: Understanding USwap's fundamental building blocks - AssetValue, USwapNumber, and error handling
+description: Understanding TCSwap's fundamental building blocks - AssetValue, USwapNumber, and error handling
 ---
 
 import { Card, CardGrid, Code, Tabs, TabItem } from "@astrojs/starlight/components";
 
-Before diving into USwap's features, it's essential to understand its core concepts. These building blocks are used throughout the SDK and understanding them will make your development experience much smoother.
+Before diving into TCSwap's features, it's essential to understand its core concepts. These building blocks are used throughout the SDK and understanding them will make your development experience much smoother.
 
 ## AssetValue
 
-`AssetValue` is USwap's primary way of representing amounts of any asset across all supported chains. It handles decimal precision, formatting, and arithmetic operations automatically.
+`AssetValue` is TCSwap's primary way of representing amounts of any asset across all supported chains. It handles decimal precision, formatting, and arithmetic operations automatically.
 
 ### Creating AssetValue
 
@@ -32,7 +32,7 @@ const oneEthInWei = AssetValue.from({
 
 ### Asset Notation
 
-USwap uses a consistent format for identifying assets:
+TCSwap uses a consistent format for identifying assets:
 
 ```typescript
 // @noErrorValidation
@@ -140,7 +140,7 @@ num1.toFixed(2);
 
 ## Chain Types
 
-USwap uses consistent chain identifiers across the entire SDK:
+TCSwap uses consistent chain identifiers across the entire SDK:
 
 ```typescript
 // @noErrorValidation
@@ -175,7 +175,7 @@ Chain.Ripple;
 
 ## Error Handling
 
-USwap uses a typed error system for better debugging:
+TCSwap uses a typed error system for better debugging:
 
 ### USwapError
 
@@ -198,7 +198,7 @@ try {
 
 ### Common Error Codes
 
-USwap uses standardized error codes:
+TCSwap uses standardized error codes:
 
 ```typescript
 // @noErrorValidation
@@ -240,7 +240,7 @@ catch (error) {
 
 ## Wallet Types
 
-USwap supports various wallet types through the `WalletOption` enum:
+TCSwap supports various wallet types through the `WalletOption` enum:
 
 ```typescript
 // @noErrorValidation
@@ -274,7 +274,7 @@ await uSwap.transfer({
 
 ## Provider Types
 
-USwap integrates with multiple swap providers:
+TCSwap integrates with multiple swap providers:
 
 ```typescript
 // @noErrorValidation
@@ -346,16 +346,16 @@ const usdValue = btcBalance.toCurrency("USD", btcPrice);
 
 ## Next Steps
 
-Now that you understand USwap's core concepts, you're ready to build your first application:
+Now that you understand TCSwap's core concepts, you're ready to build your first application:
 
 <CardGrid>
   <Card title="🔧 Configuration Setup" icon="setting">
     Configure API keys, RPC URLs, and production settings for optimal
-    performance. [Configure USwap →](/start/configuration)
+    performance. [Configure TCSwap →](/start/configuration)
   </Card>
 
   <Card title="⚡ Essential Actions" icon="star">
-    Learn the core functionality every USwap application needs to implement.
+    Learn the core functionality every TCSwap application needs to implement.
     [Connect Wallets →](/guides/actions/connect-wallet)
   </Card>
 
@@ -365,7 +365,7 @@ Now that you understand USwap's core concepts, you're ready to build your first 
   </Card>
 
   <Card title="📚 API Reference" icon="document">
-    Explore the complete USwap API with detailed method documentation. [API
+    Explore the complete TCSwap API with detailed method documentation. [API
     Reference →](/guides/api-reference)
   </Card>
 </CardGrid>

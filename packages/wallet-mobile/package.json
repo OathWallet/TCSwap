@@ -1,7 +1,7 @@
 {
   "author": "swapkit-oss",
   "dependencies": { "@tcswap/helpers": "workspace:*", "@tcswap/toolboxes": "workspace:*" },
-  "description": "USwap - Wallet Mobile",
+  "description": "TCSwap - Wallet Mobile",
   "exports": {
     ".": {
       "bun": "./src/index.ts",

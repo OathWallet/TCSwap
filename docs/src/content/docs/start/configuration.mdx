@@ -1,16 +1,16 @@
 {/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Configuration
-description: Configure USwap with API keys, RPC URLs, and custom settings
+description: Configure TCSwap with API keys, RPC URLs, and custom settings
 ---
 
 import { Code, Tabs, TabItem } from "@astrojs/starlight/components";
 
-USwap uses a centralized configuration system called `USwapConfig` that manages all settings across [toolboxes](/start/toolbox-usage), [plugins](/guides/create-plugin), and integrations. This guide covers how to configure USwap for your application.
+TCSwap uses a centralized configuration system called `USwapConfig` that manages all settings across [toolboxes](/start/toolbox-usage), [plugins](/guides/create-plugin), and integrations. This guide covers how to configure TCSwap for your application.
 
 ## Configuration Overview
 
-USwap's configuration is managed through the `USwapConfig` store, which handles:
+TCSwap's configuration is managed through the `USwapConfig` store, which handles:
 
 - RPC URLs for blockchain connections
 - API keys for external services
@@ -22,7 +22,7 @@ USwap's configuration is managed through the `USwapConfig` store, which handles:
 
 ## Basic Configuration
 
-When creating a USwap instance, you can provide configuration options:
+When creating a TCSwap instance, you can provide configuration options:
 
 ```typescript
 // @noErrorValidation
@@ -59,9 +59,9 @@ const uSwap = createUSwap({
 
 ## API Keys
 
-### USwap API Key
+### TCSwap API Key
 
-The USwap API key unlocks enhanced features:
+The TCSwap API key unlocks enhanced features:
 
 - Higher rate limits
 - Advanced swap routes
@@ -104,7 +104,7 @@ Without this key, UTXO chain functionality is limited. Get your key at [blockcha
 
 ## RPC URLs
 
-USwap provides default RPC URLs for all supported chains, but you can override them:
+TCSwap provides default RPC URLs for all supported chains, but you can override them:
 
 ```typescript
 // @noErrorValidation
@@ -124,7 +124,7 @@ const uSwap = createUSwap({
 
 ## Midgard API Configuration
 
-Midgard provides historical data and liquidity information for THORChain and Maya. USwap allows you to configure custom Midgard endpoints and authentication headers.
+Midgard provides historical data and liquidity information for THORChain and Maya. TCSwap allows you to configure custom Midgard endpoints and authentication headers.
 
 ### Custom Midgard URLs
 
@@ -201,7 +201,7 @@ const apiHeaders = USwapConfig.get('apiHeaders');
 
 ## API Headers Configuration
 
-USwap supports custom headers for all API endpoints (Midgard, THORNode, and USwap API). This is useful for:
+TCSwap supports custom headers for all API endpoints (Midgard, THORNode, and TCSwap API). This is useful for:
 
 - Authentication with private API instances
 - Custom client identification
@@ -211,7 +211,7 @@ USwap supports custom headers for all API endpoints (Midgard, THORNode, and USwa
 
 1. **Midgard API** (`midgard`): Historical data and liquidity information
 2. **THORNode API** (`thornode`): Direct blockchain node access
-3. **USwap API** (`uSwapApi`): Swap quotes, prices, and token data
+3. **TCSwap API** (`uSwapApi`): Swap quotes, prices, and token data
 
 ### Setting Headers
 
@@ -290,7 +290,7 @@ const apiKeys = USwapConfig.get('apiKeys');
 
 ## Environment Settings
 
-Control USwap's behavior with environment flags:
+Control TCSwap's behavior with environment flags:
 
 ```typescript
 // @noErrorValidation

@@ -49,7 +49,7 @@
     "ts-pattern": "^5.9.0",
     "xrpl": "~4.4.2"
   },
-  "description": "USwap - Toolboxes",
+  "description": "TCSwap - Toolboxes",
   "devDependencies": {
     "@bitcoinerlab/secp256k1": "1.2.0",
     "@bitgo/utxo-lib": "11.16.1",

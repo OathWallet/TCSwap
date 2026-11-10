@@ -1,7 +1,7 @@
 {/* Modifications © 2025 Horizontal Systems. */}
 ---
 title: Performing Swaps
-description: How to perform token swaps across different chains with USwap
+description: How to perform token swaps across different chains with TCSwap
 ---
 
 import InteractiveExample from "../../../../components/InteractiveExample.astro";
@@ -9,13 +9,13 @@ import TryItYourself from "../../../../components/TryItYourself.astro";
 import PlaygroundLinks from "../../../../components/PlaygroundLinks.astro";
 import SwapQuoteDemo from "../../../../components/SwapQuoteDemo.astro";
 
-USwap provides a unified interface for swapping tokens across different chains and protocols. This guide covers how to get quotes and execute swaps using both the granular and all-in-one approaches.
+TCSwap provides a unified interface for swapping tokens across different chains and protocols. This guide covers how to get quotes and execute swaps using both the granular and all-in-one approaches.
 
 Before starting, make sure you understand [Core Concepts](/start/core-concepts) like [AssetValue](/start/core-concepts#assetvalue) and [Chain types](/start/core-concepts#chain-types). For detailed API methods, see the [API Reference](/guides/api-reference).
 
-## Two Approaches for Using USwap
+## Two Approaches for Using TCSwap
 
-You can use USwap in two ways:
+You can use TCSwap in two ways:
 
 1. **Granular approach** - Import only what you need from individual packages (recommended for frontend):
 
@@ -32,14 +32,14 @@ You can use USwap in two ways:
 
 The typical flow for performing a swap consists of these steps:
 
-1. Initialize USwap and connect wallets
+1. Initialize TCSwap and connect wallets
 2. Get a quote for the swap
 3. Approve tokens (if needed)
 4. Execute the swap transaction
 
 <TryItYourself
   title="🚀 Live Swap Demo"
-  description="See USwap swaps in action with our interactive playground"
+  description="See TCSwap swaps in action with our interactive playground"
   variant="primary"
   icon="lightning"
 >
@@ -52,7 +52,7 @@ The typical flow for performing a swap consists of these steps:
   />
 </TryItYourself>
 
-## Setting Up USwap for Swaps
+## Setting Up TCSwap for Swaps
 
 ### Granular Approach (Frontend Recommended)
 
@@ -280,7 +280,7 @@ async function executeSwap() {
 
 ## Cross-Chain Swaps with Chainflip
 
-USwap supports cross-chain swaps through Chainflip:
+TCSwap supports cross-chain swaps through Chainflip:
 
 ```ts twoslash
 
@@ -347,7 +347,7 @@ async function crossChainSwap() {
 
 ## THORChain Swaps
 
-USwap also supports swaps through THORChain:
+TCSwap also supports swaps through THORChain:
 
 ```ts twoslash
 import {
