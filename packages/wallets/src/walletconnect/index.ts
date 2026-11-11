@@ -38,11 +38,13 @@ import {
   type SignClientInstance,
   trackSetup,
 } from "./sessions";
-import type { WalletconnectOptions } from "./types";
+import { targetWalletPresentation } from "./targetWallet";
+import type { WalletconnectOptions, WalletconnectTarget } from "./types";
 
 export * from "./constants";
 export { isWalletconnectDismissed } from "./helpers";
 export { onWalletconnectDisconnect } from "./sessions";
+export { oathWalletconnectTarget } from "./targetWallet";
 export * from "./types";
 
 export const walletconnectWallet = createWallet({
@@ -377,9 +379,12 @@ function getCosmosSigner({
 // One client and one modal per page: every `SignClient.init` opens its own relay socket and storage,
 // and WalletConnect warns when it is initialised again.
 let clientPromise: Promise<SignClientInstance> | undefined;
-let modalPromise: Promise<WalletConnectModal> | undefined;
+let modalPromise: Promise<{ modal: WalletConnectModal; core: typeof import("@walletconnect/modal-core") }> | undefined;
 
-function getSignClient(projectId: string, { restoreOnly: _, ...options }: WalletconnectOptions = {}) {
+function getSignClient(
+  projectId: string,
+  { restoreOnly: _, targetWallet: _target, ...options }: WalletconnectOptions = {},
+) {
   clientPromise ??= import("@walletconnect/sign-client")
     .then(async ({ SignClient }) => {
       const client = await SignClient.init({
@@ -411,10 +416,10 @@ const WALLET_LIST_TIMEOUT = 3000;
 
 function getModal(projectId: string) {
   modalPromise ??= Promise.all([import("@walletconnect/modal"), import("@walletconnect/modal-core")])
-    .then(([{ WalletConnectModal }, { OptionsCtrl }]) => {
+    .then(([{ WalletConnectModal }, core]) => {
       const modal = new WalletConnectModal({ projectId });
-      setTimeout(() => OptionsCtrl.setIsDataLoaded(true), WALLET_LIST_TIMEOUT);
-      return modal;
+      setTimeout(() => core.OptionsCtrl.setIsDataLoaded(true), WALLET_LIST_TIMEOUT);
+      return { core, modal };
     })
     .catch((error) => {
       modalPromise = undefined;
@@ -431,11 +436,12 @@ const MODAL_OPEN_TIMEOUT = 15_000;
 let pairings = 0;
 
 /** Shows the QR code until the wallet approves, rejects, or the user closes the modal. */
-async function pair(client: SignClientInstance, projectId: string, chains: Chain[]) {
+async function pair(client: SignClientInstance, projectId: string, chains: Chain[], target?: WalletconnectTarget) {
   const proposal = client.connect({ optionalNamespaces: getNamespaces(chains.flatMap(chainToChainIds)) });
   // Handled below, once the modal is loaded; this only keeps a failed modal load from leaving it unhandled.
   proposal.catch(() => undefined);
-  const modal = await getModal(projectId);
+  const { core, modal } = await getModal(projectId);
+  const presentation = target && targetWalletPresentation(core, target, navigator);
   const pairing = ++pairings;
 
   return new Promise<SessionTypes.Struct>((resolve, reject) => {
@@ -447,6 +453,7 @@ async function pair(client: SignClientInstance, projectId: string, chains: Chain
       clearTimeout(timeout);
       unsubscribe();
       modal.closeModal();
+      presentation?.dispose();
       // Still loading, the modal would open after the connect is over; closed then, unless a later pairing has it.
       for (const opening of openings) {
         opening.then(() => pairing === pairings && modal.closeModal()).catch(() => undefined);
@@ -463,6 +470,7 @@ async function pair(client: SignClientInstance, projectId: string, chains: Chain
 
     // Opened before the proposal has its uri (a relay round trip), the modal shows a spinner in place of the QR code.
     const opening = modal.openModal();
+    presentation?.route(false);
     const openings = [opening];
     const timeout = setTimeout(() => {
       // A UI that failed to load is not loaded again: the bundler keeps the failed chunk until a reload.
@@ -494,7 +502,10 @@ async function pair(client: SignClientInstance, projectId: string, chains: Chain
           (error) => settle(() => reject(new USwapError("wallet_walletconnect_connection_not_established", error))),
         );
 
-        if (!settled) openings.push(showUri(modal, uri));
+        if (!settled) {
+          openings.push(showUri(modal, uri));
+          presentation?.route(true);
+        }
       },
       (error) => settle(() => reject(new USwapError("wallet_walletconnect_connection_not_established", error))),
     );
@@ -565,7 +576,9 @@ async function getWalletconnects<T extends Chain>(
     return { approved, client, superseded };
   }
 
-  const session = findReusableSession(sessions, chains) ?? (await pair(client, projectId, chains));
+  const target = walletconnectOptions?.targetWallet;
+  const reusable = target ? undefined : findReusableSession(sessions, chains);
+  const session = reusable ?? (await pair(client, projectId, chains, target));
   const walletconnect = toWalletconnect(client, session);
 
   // The proposal asks for every chain as optional, so the wallet may approve only some of them.

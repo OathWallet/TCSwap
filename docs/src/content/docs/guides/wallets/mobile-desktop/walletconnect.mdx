@@ -1002,3 +1002,17 @@ export function WalletConnect({ onConnect, onError }: WalletConnectProps) {
 ```
 
 This comprehensive guide covers all aspects of WalletConnect integration with TCSwap SDK v4, including multi-chain support, mobile wallet connectivity, and security best practices for production applications.
+
+### Open a specific wallet
+
+Pass a target to start a fresh pairing even when another wallet has a stored session.
+The SDK opens the wallet's QR on desktop and its native link on iOS. A cancelled
+pairing leaves existing accounts available. Silent restoration still uses stored sessions.
+
+```ts
+import { oathWalletconnectTarget } from "@tcswap/wallets/walletconnect";
+
+await uSwap.connectWalletconnect([Chain.THORChain], {
+  targetWallet: { ...oathWalletconnectTarget, iconUrl: "/wallets/oath.svg" },
+});
+```
